@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutGrid, GraduationCap, FileText, User, QrCode } from 'lucide-react';
+import { LayoutGrid, GraduationCap, FileText, User, QrCode, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Notifications from './Notifications'; 
 
@@ -12,7 +12,7 @@ const StudentBottomNav = () => {
   const navItems = [
     { id: 'tableau', label: 'Tableau', icon: LayoutGrid, path: '/student/tableau' },
     { id: 'cours', label: 'Cours', icon: GraduationCap, path: '/student/cours' },
-    { id: 'justificatifs', label: 'Docs', icon: FileText, path: '/student/justificatifs' }, // Raccourci pour mobile
+    { id: 'justificatifs', label: 'Docs', icon: FileText, path: '/student/justificatifs' },
     { id: 'profil', label: 'Profil', icon: User, path: '/student/profil' },
   ];
 
@@ -36,7 +36,7 @@ const StudentBottomNav = () => {
               <div className="w-9 h-9 bg-[#006c49] rounded-xl flex items-center justify-center transition-transform group-hover:rotate-12 shadow-md">
                 <div className="w-2.5 h-2.5 bg-white rounded-full shadow-sm"></div>
               </div>
-              <span className="font-display font-extrabold text-2xl tracking-tighter text-[#1a1c1e]">
+              <span className="font-display font-extrabold text-xl sm:text-2xl tracking-tighter text-[#1a1c1e]">
                 Unicheck
               </span>
             </div>
@@ -69,7 +69,7 @@ const StudentBottomNav = () => {
             </nav>
 
             {/* ACTIONS DROITE */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               {/* BOUTON SCAN DESKTOP */}
               <button 
                 onClick={() => navigate('/student/scan')}
@@ -81,33 +81,36 @@ const StudentBottomNav = () => {
 
               <Notifications /> 
               
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#10b981] to-[#006c49] flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-sm">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#10b981] to-[#006c49] flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-sm">
                 MM
               </div>
+
+              {/* BOUTON DÉCONNEXION (Nouveau) */}
+              <button 
+                onClick={() => navigate('/')}
+                title="Se déconnecter"
+                className="group relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all duration-300 shadow-sm"
+              >
+                <div className="absolute inset-0 bg-red-100 rounded-xl opacity-0 group-active:opacity-100 transition-opacity" />
+                <LogOut size={18} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform z-10" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       {/* =========================================
-          BOTTOM NAVBAR (Mobile) - Nouvelle disposition
+          BOTTOM NAVBAR (Mobile) 
           ========================================= */}
-      {/* J'ai augmenté la hauteur globale (h-20) pour laisser respirer les icônes et le texte */}
       <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 px-2 h-20 z-50 rounded-t-[2rem] shadow-[0_-15px_40px_rgba(0,0,0,0.06)] lg:hidden flex items-center">
-        
         <div className="flex justify-between items-center w-full max-w-md mx-auto relative px-2">
           
-          {/* ITEMS GAUCHE */}
           <div className="flex gap-1 md:gap-2">
             {leftItems.map((item) => (
               <NavIcon key={`mobile-${item.id}`} item={item} currentPath={currentPath} navigate={navigate} />
             ))}
           </div>
 
-          {/* =========================================
-              BOUTON SCAN CENTRAL FLOTTANT (FAB) 
-              ========================================= */}
-          {/* Il est remonté via -top-8, et son texte est bien calé en dessous */}
           <div className="absolute left-1/2 -translate-x-1/2 -top-8 flex flex-col items-center">
             <button 
               onClick={() => navigate('/student/scan')}
@@ -121,23 +124,19 @@ const StudentBottomNav = () => {
             </span>
           </div>
 
-          {/* Spacer invisible pour équilibrer la grille autour du bouton central */}
           <div className="w-[60px]" />
 
-          {/* ITEMS DROITE */}
           <div className="flex gap-1 md:gap-2">
             {rightItems.map((item) => (
               <NavIcon key={`mobile-${item.id}`} item={item} currentPath={currentPath} navigate={navigate} />
             ))}
           </div>
-
         </div>
       </nav>
     </>
   );
 };
 
-// --- Sous-composant pour l'icône de navigation (Magie des animations ici) ---
 const NavIcon = ({ item, currentPath, navigate }) => {
   const isActive = currentPath.includes(item.id) || (currentPath === '/student' && item.id === 'tableau');
   const Icon = item.icon;
@@ -147,7 +146,6 @@ const NavIcon = ({ item, currentPath, navigate }) => {
       onClick={() => navigate(item.path)}
       className="relative flex flex-col items-center justify-center w-[60px] h-[56px] group transition-all"
     >
-      {/* Le fond vert clair qui englobe tout quand actif */}
       {isActive && (
         <motion.div
           layoutId="mobile-pill-bg"
@@ -155,16 +153,12 @@ const NavIcon = ({ item, currentPath, navigate }) => {
           transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
         />
       )}
-
-      {/* Le POINT AU TOP (Comme tu l'as demandé) */}
       {isActive && (
         <motion.div 
           layoutId="active-dot-top" 
           className="absolute top-1.5 w-1 h-1 bg-[#006c49] rounded-full" 
         />
       )}
-
-      {/* L'icône (glisse vers le haut quand actif pour faire de la place au texte) */}
       <Icon 
         size={22} 
         strokeWidth={isActive ? 2.5 : 2} 
@@ -172,8 +166,6 @@ const NavIcon = ({ item, currentPath, navigate }) => {
           isActive ? 'text-[#006c49] -translate-y-1' : 'text-gray-400 group-hover:text-gray-600 translate-y-1'
         }`} 
       />
-
-      {/* Le Label (Apparaît uniquement quand l'item est actif, juste en dessous) */}
       <AnimatePresence>
         {isActive && (
           <motion.span

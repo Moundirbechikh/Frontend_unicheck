@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutGrid, Users, GraduationCap, CalendarDays } from 'lucide-react';
+import { LayoutGrid, Users, GraduationCap, CalendarDays, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Notifications from './Notifications'; 
 
@@ -9,7 +9,6 @@ const AdminNav = () => {
   const location = useLocation();
   const currentPath = location.pathname;
 
-  // Liens spécifiques à l'Administrateur
   const navItems = [
     { id: 'tableau', label: 'Tableau', icon: LayoutGrid, path: '/admin/tableau' },
     { id: 'etudiants', label: 'Étudiants', icon: GraduationCap, path: '/admin/etudiants' },
@@ -23,14 +22,10 @@ const AdminNav = () => {
 
   return (
     <>
-      {/* =========================================
-          TOP NAVBAR (Desktop & Mobile Header) 
-          ========================================= */}
       <header className="fixed top-0 left-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 shadow-[0_4px_30px_rgba(0,0,0,0.02)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             
-            {/* LOGO */}
             <div 
               className="flex items-center gap-3 cursor-pointer group" 
               onClick={() => navigate('/admin/tableau')}
@@ -38,12 +33,11 @@ const AdminNav = () => {
               <div className="w-9 h-9 bg-[#006c49] rounded-xl flex items-center justify-center transition-transform group-hover:rotate-12 shadow-md">
                 <div className="w-2.5 h-2.5 bg-white rounded-full shadow-sm"></div>
               </div>
-              <span className="font-display font-extrabold text-2xl tracking-tighter text-[#1a1c1e]">
-                Unicheck <span className="text-[#006c49] text-sm ml-1">Admin</span>
+              <span className="font-display font-extrabold text-xl sm:text-2xl tracking-tighter text-[#1a1c1e]">
+                Unicheck <span className="text-[#006c49] text-sm ml-1 hidden sm:inline-block">Admin</span>
               </span>
             </div>
 
-            {/* DESKTOP NAV */}
             <nav className="hidden lg:flex items-center gap-2">
               {navItems.map((item) => {
                 const isActive = currentPath.includes(item.path) || (currentPath === '/admin' && item.id === 'tableau');
@@ -71,21 +65,28 @@ const AdminNav = () => {
             </nav>
 
             {/* ACTIONS DROITE */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <Notifications />
-              <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-sm">
+              
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-sm">
                 MC
               </div>
+
+              {/* BOUTON DÉCONNEXION */}
+              <button 
+                onClick={() => navigate('/')}
+                title="Se déconnecter"
+                className="group relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all duration-300 shadow-sm"
+              >
+                <div className="absolute inset-0 bg-red-100 rounded-xl opacity-0 group-active:opacity-100 transition-opacity" />
+                <LogOut size={18} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform z-10" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* =========================================
-          BOTTOM NAVBAR (Mobile) - Hauteur réduite
-          ========================================= */}
       <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 px-4 pt-2 pb-5 z-50 rounded-t-[2rem] shadow-[0_-15px_40px_rgba(0,0,0,0.04)] lg:hidden">
-        {/* Label de la page active (plus compact) */}
         <div className="max-w-md mx-auto mb-1 flex justify-center">
              <AnimatePresence mode="wait">
                 <motion.div
@@ -100,7 +101,6 @@ const AdminNav = () => {
              </AnimatePresence>
         </div>
 
-        {/* Grille des boutons - Hauteur h-[50px] au lieu de h-[60px] */}
         <div className="flex justify-between items-center max-w-md mx-auto relative px-2">
           {navItems.map((item) => {
             const isActive = currentPath.includes(item.path) || (currentPath === '/admin' && item.id === 'tableau');
