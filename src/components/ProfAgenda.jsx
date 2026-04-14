@@ -10,16 +10,28 @@ import {
   Eye, 
   FileWarning,
   CalendarDays,
-  BookOpen, // Pour le background
+  BookOpen,
   Clock
 } from 'lucide-react';
 import CalendarDay from './CalendarDay';
+import ActiveAttendanceSession from './ActiveAttendanceSession';
 
 const ProfAgenda = () => {
+  // 1. TOUS LES HOOKS DOIVENT ÊTRE EN HAUT (Avant les "if")
+  const [isSessionActive, setIsSessionActive] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewDate, setViewDate] = useState(new Date());
   
   const today = new Date();
+
+  // 2. LOGIQUE DE NAVIGATION (Early return) APRÈS LES HOOKS
+  if (isSessionActive) {
+    return (
+      <ActiveAttendanceSession 
+        onStopSession={() => setIsSessionActive(false)} 
+      />
+    );
+  }
   
   // Logique du Calendrier
   const viewYear = viewDate.getFullYear();
@@ -194,15 +206,13 @@ const ProfAgenda = () => {
                           </div>
                         </div>
 
-                        {/* Boutons d'Action (Responsive : bas sur mobile, droite sur PC) */}
+                        {/* Boutons d'Action */}
                         <div className="flex shrink-0 sm:w-40">
                           {session.status === 'done' ? (
-                            /* SÉANCE TERMINÉE : Consulter */
-                            // TODO: Au clic, ouvrir un modal/page listant les présences
+                            /* SÉANCE TERMINÉE */
                             <button className="w-full py-3.5 bg-[#f1f4f2] hover:bg-gray-200 text-[#1a1c1e] rounded-xl font-black text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                               <Eye size={16} /> 
                               Consulter
-                              {/* Pastille justifications */}
                               {session.hasJustifications && (
                                 <span className="absolute -top-2 -right-2 sm:top-auto sm:right-auto sm:relative sm:-mt-0.5 flex items-center justify-center w-5 h-5 bg-red-500 text-white rounded-full shadow-md">
                                   <FileWarning size={10} />
@@ -210,9 +220,10 @@ const ProfAgenda = () => {
                               )}
                             </button>
                           ) : (
-                            /* SÉANCE À VENIR / EN COURS : Lancer */
-                            // TODO: Au clic, déclencher le scan / création de séance
-                            <button className="w-full py-3.5 bg-[#10b981] hover:bg-[#059669] text-white rounded-xl font-black text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#10b981]/20 active:scale-95">
+                            /* SÉANCE À VENIR / EN COURS */
+                            <button 
+                            onClick={() => setIsSessionActive(true)}
+                            className="w-full py-3.5 bg-[#10b981] hover:bg-[#059669] text-white rounded-xl font-black text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#10b981]/20 active:scale-95">
                               <Play size={16} fill="currentColor" /> Lancer
                             </button>
                           )}
