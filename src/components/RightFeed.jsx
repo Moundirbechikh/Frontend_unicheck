@@ -80,6 +80,9 @@ const StudentList = ({ presentStudents, onClose }) => (
 const RightFeed = ({ presentStudents = [], totalCapacity = 60, onClose }) => {
   const [showMobileList, setShowMobileList] = useState(false);
 
+  // Inverser la liste pour que le dernier scanné apparaisse en haut du flux
+  const reversedStudents = [...presentStudents].reverse();
+
   return (
     <>
       {/* ── DESKTOP : sidebar complète ── */}
@@ -111,7 +114,7 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 60, onClose }) => {
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
             <AnimatePresence mode="popLayout">
-              {presentStudents.length === 0 ? (
+              {reversedStudents.length === 0 ? (
                 <motion.div
                   key="empty"
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -121,7 +124,7 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 60, onClose }) => {
                   <p className="text-[10px] font-bold uppercase tracking-widest">En attente...</p>
                 </motion.div>
               ) : (
-                presentStudents.map((student) => (
+                reversedStudents.map((student) => (
                   <motion.div
                     layout key={student.id}
                     initial={{ opacity: 0, y: -8, scale: 0.96 }}
@@ -176,7 +179,7 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 60, onClose }) => {
       <AnimatePresence>
         {showMobileList && (
           <StudentList
-            presentStudents={presentStudents}
+            presentStudents={reversedStudents}
             onClose={() => setShowMobileList(false)}
           />
         )}

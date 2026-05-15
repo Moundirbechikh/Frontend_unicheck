@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutGrid, Users, FileText, PlayCircle, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,22 @@ const ProfNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
+
+  // --- ÉTAT POUR LES INITIALES DYNAMIQUES ---
+  const [initials, setInitials] = useState('PR');
+
+  useEffect(() => {
+    // Récupération du prénom et du nom depuis le localStorage
+    const prenom = localStorage.getItem('userLastName') || "";
+    const nom = localStorage.getItem('userFirstName') || "";
+
+    if (prenom || nom) {
+      // Extraction de la première lettre de chaque chaîne
+      const pInitial = prenom ? prenom[0] : '';
+      const nInitial = nom ? nom[0] : '';
+      setInitials((pInitial + nInitial).toUpperCase());
+    }
+  }, []);
 
   const navItems = [
     { id: 'tableau', label: 'Tableau', icon: LayoutGrid, path: '/prof/tableau' },
@@ -19,6 +35,24 @@ const ProfNav = () => {
   const activeItem = navItems.find(item => 
     currentPath.includes(item.path) || (currentPath === '/prof' && item.id === 'tableau')
   ) || navItems[0];
+
+  const handleLogout = () => {
+    // 1. Supprimer les données de session de manière chirurgicale
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userPrenom');
+    localStorage.removeItem('userNom');
+  
+    // 2. L'option "Nettoyage Total" : Efface absolument tout ce qui est stocké
+    // C'est très utile pour éviter les conflits entre les rôles Admin/Etudiant
+    localStorage.clear();
+  
+    // 3. Redirection vers la page d'accueil (la base "/") 
+    // On utilise replace: true pour que le bouton "Retour" du navigateur soit désactivé
+    navigate('/', { replace: true });
+  };
 
   return (
     <>
@@ -68,18 +102,22 @@ const ProfNav = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               <Notifications />
               
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-sm">
-                DM
+              {/* BADGE INITIALES DYNAMIQUE */}
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider">
+                {initials}
               </div>
 
               {/* BOUTON DÉCONNEXION */}
               <button 
-                onClick={() => navigate('/')}
-                title="Se déconnecter"
-                className="group relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all duration-300 shadow-sm"
+                onClick={handleLogout} 
+                title="Se déconnecter" 
+                className="group relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-300 shadow-sm"
               >
-                <div className="absolute inset-0 bg-red-100 rounded-xl opacity-0 group-active:opacity-100 transition-opacity" />
-                <LogOut size={18} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform z-10" />
+                <LogOut 
+                  size={18} 
+                  strokeWidth={2.5} 
+                  className="group-hover:-translate-x-0.5 transition-transform z-10" 
+                />
               </button>
             </div>
           </div>

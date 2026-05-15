@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { Smartphone, BadgeCheck, X, Save, AlertTriangle, Fingerprint } from 'lucide-react';
+import { Smartphone, BadgeCheck, X, Save, AlertTriangle, Fingerprint, Mail } from 'lucide-react';
 
 const StudentDetailModal = ({ student, onClose, onSave }) => {
   const [editedStudent, setEditedStudent] = useState(student);
+  
+  // VÉRIFICATION DU RÔLE DEPUIS LE TOKEN / LOCAL STORAGE
+  const userRole = localStorage.getItem('userRole'); 
+  const isAdmin = userRole === 'admin';
 
   // --- EFFET 3D ---
   const x = useMotionValue(0);
@@ -32,7 +36,6 @@ const StudentDetailModal = ({ student, onClose, onSave }) => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-[#1a1c1e]/90 backdrop-blur-sm" />
       
-      {/* Conteneur strict : Hauteur maximale fixée, pas de scroll bar */}
       <motion.div 
         initial={{ y: 50, opacity: 0, scale: 0.95 }} 
         animate={{ y: 0, opacity: 1, scale: 1 }} 
@@ -43,10 +46,9 @@ const StudentDetailModal = ({ student, onClose, onSave }) => {
           <X size={20} />
         </button>
 
-        {/* Layout : Colonne sur mobile, Ligne sur Desktop, prenant 100% de la hauteur dispo */}
         <div className="flex-1 flex flex-col lg:flex-row w-full h-full p-4 md:p-8 gap-4 md:gap-8 min-h-0">
           
-          {/* --- MOITIÉ HAUTE/GAUCHE : ID CARD 3D --- */}
+          {/* --- MOITIÉ GAUCHE : ID CARD 3D --- */}
           <div className="flex-1 flex flex-col items-center justify-center min-h-0 perspective-[1000px]">
             <motion.div
               style={{ x: 0, y: 0, rotateX, rotateY, z: 100 }}
@@ -58,12 +60,12 @@ const StudentDetailModal = ({ student, onClose, onSave }) => {
 
               <div className="flex justify-between items-start mb-6 relative z-10">
                 <div className="w-14 h-14 md:w-16 md:h-16 bg-[#006c49] rounded-2xl flex items-center justify-center border-2 border-white/10 shadow-inner">
-                  <span className="font-display font-black text-2xl text-white">{editedStudent.name.charAt(0)}</span>
+                  <span className="font-display font-black text-2xl text-white">{(editedStudent.prenom?.[0] || editedStudent.nom?.[0]) || "?"}</span>
                 </div>
                 <div className="bg-white/10 px-3 py-1.5 rounded-xl flex items-center gap-1.5 backdrop-blur-md">
-                  <BadgeCheck size={14} className={editedStudent.status === 'active' ? "text-[#d1f4e0]" : "text-orange-400"} />
+                  <BadgeCheck size={14} className={editedStudent.absences < 3 ? "text-[#d1f4e0]" : "text-orange-400"} />
                   <span className="text-[9px] font-display font-black uppercase tracking-[0.2em]">
-                    {editedStudent.status === 'active' ? 'Actif' : 'Alerte'}
+                    {editedStudent.absences < 3 ? 'Actif' : 'Alerte'}
                   </span>
                 </div>
               </div>
@@ -72,79 +74,100 @@ const StudentDetailModal = ({ student, onClose, onSave }) => {
                 <div>
                   <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Nom Complet</p>
                   <h2 className="text-2xl md:text-3xl font-display font-black tracking-tighter leading-none line-clamp-2">
-                    {editedStudent.name || "---"}
+                    {editedStudent.prenom} {editedStudent.nom}
                   </h2>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 pt-4 border-t border-white/10">
                   <div>
                     <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Spécialité</p>
-                    <p className="text-lg md:text-xl font-display font-black text-[#d1f4e0] truncate">{editedStudent.specialty || "---"}</p>
+                    <p className="text-lg md:text-xl font-display font-black text-[#d1f4e0] truncate">{editedStudent.specialite || "---"}</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Groupe</p>
-                    <p className="text-lg md:text-xl font-display font-black truncate">{editedStudent.group || "---"}</p>
-                  </div>
-                </div>
-
-                <div className="bg-black/30 p-3 rounded-xl flex items-center gap-3 mt-2 border border-white/5">
-                  <Smartphone size={16} className="text-[#006c49] shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Device ID</p>
-                    <p className="font-mono text-xs tracking-widest opacity-80 text-[#d1f4e0] truncate">{editedStudent.deviceId || "AUCUN"}</p>
+                    <p className="text-lg md:text-xl font-display font-black truncate">{editedStudent.groupe || "---"}</p>
                   </div>
                 </div>
               </div>
             </motion.div>
           </div>
 
-          {/* --- MOITIÉ BASSE/DROITE : ÉDITEUR COMPACT --- */}
+          {/* --- MOITIÉ DROITE : FORMULAIRE DYNAMIQUE --- */}
           <div className="flex-1 flex flex-col justify-center min-h-0">
             <div className="bg-white rounded-[2rem] p-5 md:p-8 h-full flex flex-col justify-between shadow-sm border border-gray-100">
               
               <div className="space-y-3 md:space-y-5 flex-1 overflow-y-auto no-scrollbar">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-2">Nom Complet</label>
-                  <input 
-                    type="text" name="name" value={editedStudent.name} onChange={handleChange}
-                    className="w-full bg-[#f1f4f2] border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none transition-all" 
-                  />
+                
+                {/* Noms et Prénoms */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-2">Nom</label>
+                    <input 
+                      type="text" name="nom" value={editedStudent.nom || ''} onChange={handleChange} disabled={!isAdmin}
+                      className={`w-full border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none transition-all ${isAdmin ? 'bg-[#f1f4f2]' : 'bg-gray-50 text-gray-500 cursor-not-allowed'}`} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-2">Prénom</label>
+                    <input 
+                      type="text" name="prenom" value={editedStudent.prenom || ''} onChange={handleChange} disabled={!isAdmin}
+                      className={`w-full border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none transition-all ${isAdmin ? 'bg-[#f1f4f2]' : 'bg-gray-50 text-gray-500 cursor-not-allowed'}`} 
+                    />
+                  </div>
                 </div>
 
+                {/* Spécialité et Groupe */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-2">Spécialité</label>
                     <input 
-                      type="text" name="specialty" value={editedStudent.specialty} onChange={handleChange}
-                      className="w-full bg-[#f1f4f2] border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none" 
+                      type="text" name="specialite" value={editedStudent.specialite || ''} onChange={handleChange} disabled={!isAdmin}
+                      className={`w-full border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none ${isAdmin ? 'bg-[#f1f4f2]' : 'bg-gray-50 text-gray-500 cursor-not-allowed'}`} 
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-2">Groupe</label>
                     <input 
-                      type="text" name="group" value={editedStudent.group} onChange={handleChange}
-                      className="w-full bg-[#f1f4f2] border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none" 
+                      type="text" name="groupe" value={editedStudent.groupe || ''} onChange={handleChange} disabled={!isAdmin}
+                      className={`w-full border-none rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none ${isAdmin ? 'bg-[#f1f4f2]' : 'bg-gray-50 text-gray-500 cursor-not-allowed'}`} 
                     />
                   </div>
                 </div>
 
+                {/* Email (Visible par profs et admins) */}
                 <div className="space-y-1 pt-3 border-t border-dashed border-gray-200">
-                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-red-400 ml-2 flex items-center gap-1.5">
-                    <AlertTriangle size={10} /> Device ID (Sécurité)
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#006c49] ml-2 flex items-center gap-1.5">
+                    <Mail size={10} /> Adresse Email
                   </label>
                   <input 
-                    type="text" name="deviceId" value={editedStudent.deviceId} onChange={handleChange}
-                    className="w-full bg-red-50 text-red-700 border border-red-100 rounded-xl py-3 px-4 font-mono font-bold text-sm focus:ring-2 focus:ring-red-200 outline-none uppercase tracking-widest" 
+                    type="email" name="email" value={editedStudent.email || ''} onChange={handleChange} disabled={!isAdmin}
+                    className={`w-full border border-[#006c49]/20 rounded-xl py-3 px-4 font-bold text-sm focus:ring-2 focus:ring-[#006c49]/20 outline-none tracking-wide ${isAdmin ? 'bg-[#d1f4e0]/30 text-[#006c49]' : 'bg-gray-50 text-gray-600 cursor-not-allowed'}`} 
                   />
                 </div>
+
+                {/* Device ID (VISIBLE ET MODIFIABLE UNIQUEMENT PAR ADMIN) */}
+                {isAdmin && (
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-red-400 ml-2 flex items-center gap-1.5">
+                      <AlertTriangle size={10} /> Device ID (Sécurité Mac)
+                    </label>
+                    <input 
+                      type="text" name="deviceId" value={editedStudent.deviceId || ''} onChange={handleChange}
+                      className="w-full bg-red-50 text-red-700 border border-red-100 rounded-xl py-3 px-4 font-mono font-bold text-sm focus:ring-2 focus:ring-red-200 outline-none uppercase tracking-widest" 
+                    />
+                  </div>
+                )}
               </div>
 
-              <button 
-                onClick={() => onSave(editedStudent)}
-                className="w-full mt-4 py-4 bg-[#1a1c1e] text-white rounded-xl font-display font-black text-[10px] uppercase tracking-[0.3em] hover:bg-[#006c49] transition-all flex items-center justify-center gap-2 shrink-0"
-              >
-                <Save size={16} /> Sauvegarder
-              </button>
+              {/* BOUTON SAUVEGARDER (VISIBLE UNIQUEMENT PAR ADMIN) */}
+              {isAdmin && (
+                <button 
+                  onClick={() => onSave(editedStudent)}
+                  className="w-full mt-4 py-4 bg-[#1a1c1e] text-white rounded-xl font-display font-black text-[10px] uppercase tracking-[0.3em] hover:bg-[#006c49] transition-all flex items-center justify-center gap-2 shrink-0 shadow-xl"
+                >
+                  <Save size={16} /> Sauvegarder les modifications
+                </button>
+              )}
             </div>
           </div>
 

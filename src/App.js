@@ -7,7 +7,7 @@ import LandingPage from './Pages/Landingpage';
 import Dashboard from './components/Dashboard'; 
 import Justificatif from './components/Justificatif';
 import Profile from './components/Profile';
-
+import ProtectedRoute from './components/ProtectedRoute';
 // Importations Professeur
 import ProfDashboard from './components/ProfDashboard';
 import ProfStudentsList from './components/ProfStudentsList'; // À créer (Placeholder ou composant)
@@ -18,51 +18,49 @@ import AdminDashboard from './components/AdminDashboard';
 import AdminSchedulePlanner from './components/AdminSchedulePlanner';
 import AdminStudentManager from './components/AdminStudentManager';
 import AdminProfManager from './components/AdminProfManager';
+import Auth from './components/Auth';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/connexion" element={<Connexion />} />
+        <Route path="/connexion" element={<Auth />} />
 
-        {/* =========================================
-            ESPACE ÉTUDIANT
-            ========================================= */}
-        <Route path="/student" element={<StudentLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="tableau" element={<Dashboard />} />
-          <Route path="cours" element={<HistoryPage />} />
-          <Route path="justificatifs" element={<Justificatif/>} />
-          <Route path="profil" element={<Profile/>} />
+        {/* ESPACE ÉTUDIANT SÉCURISÉ */}
+        <Route element={<ProtectedRoute allowedRoles={['etudiant']} />}>
+          <Route path="/student" element={<StudentLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="tableau" element={<Dashboard />} />
+            <Route path="cours" element={<HistoryPage />} />
+            <Route path="justificatifs" element={<Justificatif/>} />
+            <Route path="profil" element={<Profile/>} />
+          </Route>
         </Route>
 
-        {/* =========================================
-            ESPACE PROFESSEUR
-            ========================================= */}
-        <Route path="/prof" element={<ProfLayout />}>
-          <Route index element={<ProfDashboard />} />
-          <Route path="tableau" element={<ProfDashboard />} />
-          
-          {/* Placeholders pour les pages en cours de création */}
-          <Route path="etudiants" element={<ProfStudentsList />} />
-          <Route path="cours" element={<ProfAgenda />} />
-          <Route path="justificatifs" element={<ProfJustificatifs />} />
-          <Route path="profil" element={<Profile />} /> {/* On peut réutiliser le même Profile */}
+        {/* ESPACE PROFESSEUR SÉCURISÉ */}
+        <Route element={<ProtectedRoute allowedRoles={['prof']} />}>
+          <Route path="/prof" element={<ProfLayout />}>
+            <Route index element={<ProfDashboard />} />
+            <Route path="tableau" element={<ProfDashboard />} />
+            <Route path="etudiants" element={<ProfStudentsList />} />
+            <Route path="cours" element={<ProfAgenda />} />
+            <Route path="justificatifs" element={<ProfJustificatifs />} />
+            <Route path="profil" element={<Profile />} />
+          </Route>
         </Route>
 
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="tableau" element={<AdminDashboard />} />
-          
-          {/* Placeholders pour les pages en cours de création */}
-          <Route path="etudiants" element={<AdminStudentManager />} />
-          <Route path="professeurs" element={<AdminProfManager />} />
-
-          <Route path="planning" element={<AdminSchedulePlanner />} /> {/* On peut réutiliser le même Profile */}
+        {/* ESPACE ADMIN SÉCURISÉ */}
+        <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="tableau" element={<AdminDashboard />} />
+            <Route path="etudiants" element={<AdminStudentManager />} />
+            <Route path="professeurs" element={<AdminProfManager />} />
+            <Route path="planning" element={<AdminSchedulePlanner />} />
+          </Route>
         </Route>
 
-        {/* Redirection si l'URL est inconnue */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

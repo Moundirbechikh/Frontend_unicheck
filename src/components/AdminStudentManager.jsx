@@ -1,244 +1,386 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, Search, GraduationCap, ArrowRight, Download } from 'lucide-react';
-import StudentDetailModal from './StudentDetailModal';
+import {
+  UserPlus, Search, GraduationCap, ArrowRight,
+  Download, Loader2, X, CheckCircle2, AlertCircle,
+  Shield, User, Mail, Hash, Smartphone, RefreshCw
+} from 'lucide-react';
+import StudentDetailModal from './StudentDetailModal'; // ✅ Import du composant externe
 
-// Seuil en dessous duquel un étudiant est considéré exclu
+const API = 'https://backend-unicheck.onrender.com';
 const EXCLUSION_THRESHOLD = 70;
 
+// ── CSV export ────────────────────────────────────────────────────────────────
 const exportToCSV = (students) => {
-  const headers = ['ID', 'Nom', 'Spécialité', 'Groupe', 'Email', 'Présence (%)', 'Statut', 'Device ID'];
+  const headers = ['ID', 'Nom', 'Prénom', 'Matricule', 'Spécialité', 'Groupe',
+                   'Email', 'Présence (%)', 'Absences', 'Compte actif', 'Device ID'];
   const rows = students.map(s => [
-    s.id, s.name, s.specialty, s.group, s.email, s.attendance, s.status, s.deviceId
+    s.id, s.nom, s.prenom, s.matricule, s.specialite,
+    s.groupe, s.email, s.attendance, s.absences,
+    s.compteActif ? 'Oui' : 'Non', s.deviceId
   ]);
-  const csvContent = [headers, ...rows]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
+  const csv = [headers, ...rows]
+    .map(r => r.map(c => `"${c}"`).join(','))
     .join('\n');
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `etudiants_unicheck_${new Date().toISOString().slice(0,10)}.csv`;
-  link.click();
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `etudiants_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
   URL.revokeObjectURL(url);
 };
 
+// ════════════════════════════════════════════════════════════════════════════
 const AdminStudentManager = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState("Tous");
-  const [showExcluded, setShowExcluded] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [students,         setStudents]         = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [searchTerm,       setSearchTerm]       = useState('');
+  const [filterSpe,        setFilterSpe]        = useState('Tous');
+  const [filterGrp,        setFilterGrp]        = useState('Tous');
+  const [showExcluded,     setShowExcluded]     = useState(false);
+  const [showSansCompte,   setShowSansCompte]   = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const [students, setStudents] = useState([
-    { id: "202601", name: "Bacha Sami",          specialty: "SITW",    group: "G1",       email: "sami.b@univ.dz",      attendance: 95, status: "active",  deviceId: "UNC-11A2-88XB" },
-    { id: "202602", name: "Chouaikhia Moundir",  specialty: "SITW",    group: "G1",       email: "moundir.c@univ.dz",   attendance: 98, status: "active",  deviceId: "UNC-84F2-99XA" },
-    { id: "202603", name: "Lamine Amine",         specialty: "SITW",    group: "G2",       email: "amine.l@univ.dz",     attendance: 65, status: "warning", deviceId: "UNC-00Z9-12PC" },
-    { id: "202604", name: "Merabet Sara",         specialty: "SITW",    group: "G2",       email: "sara.m@univ.dz",      attendance: 88, status: "active",  deviceId: "UNC-33B1-44YD" },
-    { id: "202605", name: "Hamdi Yacine",         specialty: "SITW",    group: "G1",       email: "yacine.h@univ.dz",    attendance: 42, status: "warning", deviceId: "UNC-77C3-55ZE" },
-    { id: "202606", name: "Bensalem Amira",       specialty: "Master GL", group: "Master GL", email: "amira.b@univ.dz",  attendance: 91, status: "active",  deviceId: "UNC-22D4-66WF" },
-    { id: "202607", name: "Ouali Karim",          specialty: "Master GL", group: "Master GL", email: "karim.o@univ.dz",  attendance: 55, status: "warning", deviceId: "UNC-99E5-77VG" },
-    { id: "202608", name: "Meziane Sofiane",      specialty: "SITW",    group: "G2",       email: "sofiane.m@univ.dz",   attendance: 78, status: "active",  deviceId: "UNC-44F6-88UH" },
-  ]);
+  const token = localStorage.getItem('token');
+  const headers = { Authorization: `Bearer ${token}` };
 
-  const groups = ["Tous", "G1", "G2", "Master GL"];
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+  const fetchStudents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/etudiants/admin/tous-avec-stats`, { headers });
+      if (res.ok) setStudents(await res.json());
+    } catch { /* silencieux */ }
+    finally { setLoading(false); }
+  }, []);
 
-  const excludedStudents = students.filter(s => s.attendance < EXCLUSION_THRESHOLD);
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
-  const filteredStudents = students.filter(s => {
-    const matchGroup   = selectedGroup === "Tous" || s.group === selectedGroup;
-    const matchSearch  = s.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchExcluded = !showExcluded || s.attendance < EXCLUSION_THRESHOLD;
-    return matchGroup && matchSearch && matchExcluded;
+  // ── Dérivés ───────────────────────────────────────────────────────────────
+  const specialites = ['Tous', ...new Set(students.map(s => s.specialite).filter(s => s && s !== '—'))];
+  const groupes     = ['Tous', ...new Set(
+    students
+      .filter(s => filterSpe === 'Tous' || s.specialite === filterSpe)
+      .map(s => s.groupe)
+      .filter(g => g && g !== '—')
+  )];
+
+  const excludedCount    = students.filter(s => s.attendance < EXCLUSION_THRESHOLD).length;
+  const sansCompteCount  = students.filter(s => !s.compteActif).length;
+
+  const filtered = students.filter(s => {
+    const matchSearch     = s.name?.toLowerCase().includes(searchTerm.toLowerCase())
+                          || s.matricule?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSpe        = filterSpe === 'Tous' || s.specialite === filterSpe;
+    const matchGrp        = filterGrp === 'Tous' || s.groupe === filterGrp;
+    const matchExcluded   = !showExcluded   || s.attendance < EXCLUSION_THRESHOLD;
+    const matchSansCompte = !showSansCompte || !s.compteActif;
+    return matchSearch && matchSpe && matchGrp && matchExcluded && matchSansCompte;
   });
 
-  const handleUpdateStudent = (updatedStudent) => {
-    setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-    setSelectedStudent(null);
+  // ── Logique de Sauvegarde (Transmise au Modal) ───────────────────────────
+  const handleSave = async (updatedStudent) => {
+    try {
+      const res = await fetch(`${API}/api/etudiants/${updatedStudent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updatedStudent),
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        // Mise à jour de la liste locale
+        setStudents(prev => prev.map(s => s.id === updatedStudent.id ? { ...s, ...updatedStudent } : s));
+        setSelectedStudent(null);
+        alert('✓ Étudiant sauvegardé avec succès');
+      } else {
+        alert('Erreur : ' + data.message);
+      }
+    } catch (err) {
+      alert('Erreur réseau lors de la sauvegarde.');
+    }
   };
 
-  // Liste à exporter : si filtre "exclus" actif → seulement les exclus, sinon la liste filtrée
-  const listToExport = showExcluded ? excludedStudents : filteredStudents;
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f1f4f2] pt-24 pb-32 px-4 md:px-8 font-body relative overflow-hidden">
-      
+
+      <style>{`
+        .font-display { font-family: 'Manrope', sans-serif; }
+        .font-body    { font-family: 'Inter', sans-serif; }
+      `}</style>
+
       <div className="absolute -top-24 -left-24 text-[#006c49]/5 pointer-events-none rotate-12 select-none">
         <GraduationCap size={500} />
       </div>
 
       <div className="max-w-7xl mx-auto space-y-8 relative z-10">
 
-        {/* HEADER */}
+        {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <div className="space-y-2">
+          <div className="space-y-1">
             <h1 className="text-5xl md:text-8xl font-display font-black text-[#1a1c1e] tracking-tighter leading-none">
               Étudiants<span className="text-[#006c49]">.</span>
             </h1>
-            <p className="text-gray-500 font-bold uppercase text-[10px] tracking-[0.3em] ml-2">Gestion Unicheck 2026</p>
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-[0.3em] ml-1">
+              {students.length} inscrits · {excludedCount} sous le seuil
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Bouton export */}
-            <button
-              onClick={() => exportToCSV(listToExport)}
-              title="Exporter la liste en CSV"
-              className="bg-white text-[#1a1c1e] border border-gray-200 px-6 py-5 rounded-[2rem] font-display font-black text-sm shadow-sm flex items-center gap-3 hover:bg-[#f1f4f2] hover:border-[#006c49]/30 transition-all hover:-translate-y-1"
-            >
-              <Download size={18} strokeWidth={2.5} />
-              <span className="hidden sm:inline uppercase text-[10px] tracking-widest">
-                Exporter{showExcluded ? ' exclus' : ''}
-              </span>
+            <button onClick={fetchStudents}
+              className="w-12 h-12 bg-white text-gray-400 border border-gray-200 rounded-2xl
+                         flex items-center justify-center hover:bg-[#f1f4f2] transition-all"
+              title="Rafraîchir">
+              <RefreshCw size={18} strokeWidth={2.5} />
             </button>
-
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="bg-[#1a1c1e] text-white px-8 py-5 rounded-[2rem] font-display font-black text-sm shadow-2xl flex items-center gap-3 hover:bg-[#006c49] transition-all hover:-translate-y-1"
-            >
-              <UserPlus size={20} strokeWidth={3} /> INSCRIRE
+            <button onClick={() => exportToCSV(filtered)}
+              className="bg-white text-[#1a1c1e] border border-gray-200 px-5 py-4 rounded-[2rem]
+                         font-display font-black text-xs uppercase tracking-widest shadow-sm
+                         flex items-center gap-2 hover:bg-[#f1f4f2] hover:border-[#006c49]/30 transition-all">
+              <Download size={16} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Exporter ({filtered.length})</span>
             </button>
           </div>
         </div>
 
-        {/* FILTRES */}
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1 group min-w-[250px]">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#006c49] transition-colors" size={20} />
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border-none rounded-[2rem] py-5 pl-16 pr-6 font-bold text-[#1a1c1e] shadow-sm focus:ring-4 focus:ring-[#006c49]/10 transition-all outline-none"
+        {/* ── Filtres ─────────────────────────────────────────────────────── */}
+        <div className="space-y-3">
+          {/* Recherche */}
+          <div className="relative group">
+            <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400
+                                          group-focus-within:text-[#006c49] transition-colors" />
+            <input type="text" placeholder="Rechercher par nom ou matricule..."
+              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-white border-none rounded-[2rem] py-5 pl-16 pr-6 font-bold
+                         text-[#1a1c1e] shadow-sm focus:ring-4 focus:ring-[#006c49]/10 outline-none"
             />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            )}
           </div>
 
+          {/* Boutons de filtre */}
           <div className="flex flex-wrap gap-2">
-            {groups.map(group => (
-              <button
-                key={group}
-                onClick={() => { setSelectedGroup(group); setShowExcluded(false); }}
-                className={`px-5 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${
-                  selectedGroup === group && !showExcluded
-                    ? 'bg-[#006c49] text-white shadow-lg'
-                    : 'bg-white text-gray-400 hover:bg-gray-50'
-                }`}
-              >
-                {group}
+            {/* Spécialités */}
+            {specialites.map(spe => (
+              <button key={spe}
+                onClick={() => { setFilterSpe(spe); setFilterGrp('Tous'); setShowExcluded(false); setShowSansCompte(false); }}
+                className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
+                  ${filterSpe === spe && !showExcluded && !showSansCompte
+                    ? 'bg-[#006c49] text-white shadow-lg shadow-[#006c49]/20'
+                    : 'bg-white text-gray-400 hover:bg-gray-50'}`}>
+                {spe}
               </button>
             ))}
 
-            {/* Filtre Exclus */}
+            {/* Groupes */}
+            {filterSpe !== 'Tous' && groupes.filter(g => g !== 'Tous').map(g => (
+              <button key={g}
+                onClick={() => setFilterGrp(filterGrp === g ? 'Tous' : g)}
+                className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
+                  ${filterGrp === g
+                    ? 'bg-[#1a1c1e] text-white'
+                    : 'bg-white text-gray-400 hover:bg-gray-50'}`}>
+                {g}
+              </button>
+            ))}
+
+            {/* Exclus */}
             <button
-              onClick={() => { setShowExcluded(e => !e); setSelectedGroup("Tous"); }}
-              className={`px-5 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                showExcluded
+              onClick={() => { setShowExcluded(e => !e); setShowSansCompte(false); setFilterSpe('Tous'); }}
+              className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                          flex items-center gap-2 transition-all
+                ${showExcluded
                   ? 'bg-orange-500 text-white shadow-lg'
-                  : 'bg-white text-orange-500 border border-orange-200 hover:bg-orange-50'
-              }`}
-            >
+                  : 'bg-white text-orange-500 border border-orange-200 hover:bg-orange-50'}`}>
               Exclus
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
-                showExcluded ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-600'
-              }`}>
-                {excludedStudents.length}
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black
+                ${showExcluded ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-600'}`}>
+                {excludedCount}
+              </span>
+            </button>
+
+            {/* Sans compte */}
+            <button
+              onClick={() => { setShowSansCompte(e => !e); setShowExcluded(false); setFilterSpe('Tous'); }}
+              className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                          flex items-center gap-2 transition-all
+                ${showSansCompte
+                  ? 'bg-gray-700 text-white shadow-lg'
+                  : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+              Sans compte
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black
+                ${showSansCompte ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                {sansCompteCount}
               </span>
             </button>
           </div>
         </div>
 
-        {/* Bandeau info si filtre exclus actif */}
+        {/* ── Bandeau info ────────────────────────────────────────────────── */}
         <AnimatePresence>
-          {showExcluded && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="bg-orange-50 border border-orange-200 rounded-[1.5rem] px-6 py-4 flex items-center justify-between"
-            >
-              <p className="text-orange-700 font-black text-sm">
-                {excludedStudents.length} étudiant{excludedStudents.length > 1 ? 's' : ''} sous le seuil de {EXCLUSION_THRESHOLD}% de présence
+          {(showExcluded || showSansCompte) && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className={`rounded-[1.5rem] px-6 py-4 flex items-center justify-between
+                ${showExcluded
+                  ? 'bg-orange-50 border border-orange-200'
+                  : 'bg-gray-50 border border-gray-200'}`}>
+              <p className={`font-black text-sm ${showExcluded ? 'text-orange-700' : 'text-gray-700'}`}>
+                {showExcluded
+                  ? `${excludedCount} étudiant(s) sous ${EXCLUSION_THRESHOLD}% de présence`
+                  : `${sansCompteCount} étudiant(s) sans compte créé`}
               </p>
-              <button
-                onClick={() => exportToCSV(excludedStudents)}
-                className="flex items-center gap-2 text-orange-600 font-black text-[11px] uppercase tracking-wider hover:text-orange-800 transition-colors"
-              >
-                <Download size={14} /> Exporter cette liste
+              <button onClick={() => exportToCSV(filtered)}
+                className={`flex items-center gap-2 font-black text-[11px] uppercase tracking-wider transition-colors
+                  ${showExcluded ? 'text-orange-600 hover:text-orange-800' : 'text-gray-600 hover:text-gray-800'}`}>
+                <Download size={14} /> Exporter
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* GRID ÉTUDIANTS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {filteredStudents.map((student, index) => (
-              <motion.div
-                key={student.id}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => setSelectedStudent(student)}
-                className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-transparent hover:border-[#006c49]/20 hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden flex flex-col cursor-pointer"
-              >
-                <div className="absolute -right-4 -top-4 w-32 h-32 bg-[#f1f4f2] rounded-full group-hover:bg-[#d1f4e0]/50 transition-colors pointer-events-none" />
+        {/* ── Grille ──────────────────────────────────────────────────────── */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={40} className="animate-spin text-[#006c49]" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <AnimatePresence>
+                {filtered.map((student, i) => {
+                  const isExclu   = student.attendance < EXCLUSION_THRESHOLD;
+                  const hasCompte = student.compteActif;
 
-                <div className="absolute bottom-6 right-6 w-10 h-10 bg-[#f1f4f2] rounded-full flex items-center justify-center text-gray-400 group-hover:bg-[#1a1c1e] group-hover:text-white transition-all z-20">
-                  <ArrowRight size={16} />
+                  return (
+                    <motion.div key={student.id}
+                      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: i * 0.03 }}
+                      onClick={() => setSelectedStudent(student)} // ✅ Ouvre le modal
+                      className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-transparent
+                                 hover:border-[#006c49]/20 hover:shadow-xl hover:-translate-y-1
+                                 transition-all group relative overflow-hidden cursor-pointer"
+                    >
+                      {/* Fond déco */}
+                      <div className="absolute -right-4 -top-4 w-28 h-28 bg-[#f1f4f2] rounded-full
+                                      group-hover:bg-[#d1f4e0]/40 transition-colors pointer-events-none" />
+
+                      <div className="absolute bottom-5 right-5 w-9 h-9 bg-[#f1f4f2] rounded-full
+                                      flex items-center justify-center text-gray-400
+                                      group-hover:bg-[#1a1c1e] group-hover:text-white transition-all z-20">
+                        <ArrowRight size={15} />
+                      </div>
+
+                      <div className="relative z-10 space-y-4">
+                        {/* Top : avatar + badge */}
+                        <div className="flex justify-between items-start">
+                          <div className="w-14 h-14 bg-[#1a1c1e] rounded-[1.2rem] flex items-center
+                                          justify-center text-white font-display font-black text-xl shadow-md">
+                            {(student.prenom?.[0] || '') + (student.nom?.[0] || '')}
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest
+                              ${isExclu
+                                ? 'bg-red-100 text-red-600'
+                                : 'bg-[#d1f4e0] text-[#006c49]'}`}>
+                              {isExclu ? 'Exclu' : 'Actif'}
+                            </span>
+                            {!hasCompte && (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[8px]
+                                               font-black uppercase tracking-widest rounded-full">
+                                Sans compte
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Nom + infos */}
+                        <div className="pr-10">
+                          <h3 className="text-lg font-display font-black text-[#1a1c1e] leading-tight
+                                         uppercase tracking-tighter truncate">
+                            {student.nom} {student.prenom}
+                          </h3>
+                          <p className="text-gray-400 font-bold text-[11px] mt-0.5 truncate">
+                            {student.specialite !== '—' ? student.specialite : 'Spécialité non définie'}
+                            {student.groupe !== '—' ? ` · ${student.groupe}` : ''}
+                          </p>
+                          <p className="text-gray-300 font-bold text-[10px] mt-0.5">
+                            #{student.matricule}
+                          </p>
+                        </div>
+
+                        {/* Barre présence */}
+                        <div className="pr-10 space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                              Présence
+                            </span>
+                            <span className={`text-xs font-black ${isExclu ? 'text-red-500' : 'text-[#006c49]'}`}>
+                              {student.attendance}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-[#f1f4f2] rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${isExclu ? 'bg-red-400' : 'bg-[#006c49]'}`}
+                              style={{ width: `${student.attendance}%` }}
+                            />
+                          </div>
+                          {student.absences > 0 && (
+                            <p className="text-[9px] text-gray-400 font-bold">
+                              {student.absences} absence(s)
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+
+              {filtered.length === 0 && !loading && (
+                <div className="col-span-full text-center py-20 bg-white/50 rounded-[3rem]
+                                border border-dashed border-gray-200">
+                  <Search size={40} className="text-gray-200 mx-auto mb-4" />
+                  <p className="font-display font-black text-gray-400 uppercase tracking-widest text-sm">
+                    Aucun étudiant trouvé
+                  </p>
                 </div>
+              )}
+            </div>
 
-                <div className="relative z-10 space-y-5">
-                  <div className="flex justify-between items-start">
-                    <div className="w-14 h-14 bg-[#1a1c1e] rounded-[1.2rem] flex items-center justify-center text-white font-display font-black text-xl shadow-md">
-                      {student.name.charAt(0)}
-                    </div>
-                    <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                      student.attendance < EXCLUSION_THRESHOLD
-                        ? 'bg-red-100 text-red-600'
-                        : student.status === 'active'
-                          ? 'bg-[#d1f4e0] text-[#006c49]'
-                          : 'bg-orange-100 text-orange-600'
-                    }`}>
-                      {student.attendance < EXCLUSION_THRESHOLD ? 'exclu' : student.status}
-                    </div>
-                  </div>
-
-                  <div className="pr-12">
-                    <h3 className="text-xl font-display font-black text-[#1a1c1e] leading-none uppercase tracking-tighter truncate">
-                      {student.name}
-                    </h3>
-                    <p className="text-gray-400 font-bold text-xs mt-1">{student.specialty} - {student.group} • {student.id}</p>
-                  </div>
-
-                  <div className="pt-2 pr-12">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[9px] font-black text-gray-400 uppercase">Présence</span>
-                      <span className={`text-xs font-black ${
-                        student.attendance < EXCLUSION_THRESHOLD ? 'text-red-500' : 'text-[#006c49]'
-                      }`}>
-                        {student.attendance}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-[#f1f4f2] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          student.attendance < EXCLUSION_THRESHOLD ? 'bg-red-500' : 'bg-[#006c49]'
-                        }`}
-                        style={{ width: `${student.attendance}%` }}
-                      />
-                    </div>
-                  </div>
+            {/* Stats footer */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total affiché',  val: filtered.length,        color: 'text-[#1a1c1e]' },
+                { label: 'Total inscrits', val: students.length,        color: 'text-[#1a1c1e]' },
+                { label: 'Sous le seuil',  val: excludedCount,          color: 'text-orange-500' },
+                { label: 'Sans compte',    val: sansCompteCount,        color: 'text-gray-500' },
+              ].map(({ label, val, color }) => (
+                <div key={label} className="bg-white/60 backdrop-blur-sm p-4 rounded-3xl
+                                            border border-white/80 text-center shadow-sm">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                  <p className={`text-3xl font-display font-black mt-1 ${color}`}>{val}</p>
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
+      {/* ── Modal Détail Étudiant ── */}
       <AnimatePresence>
         {selectedStudent && (
           <StudentDetailModal
             student={selectedStudent}
             onClose={() => setSelectedStudent(null)}
-            onSave={handleUpdateStudent}
+            onSave={handleSave} // ✅ Exécute le fetch PUT déclaré plus haut
           />
         )}
       </AnimatePresence>
