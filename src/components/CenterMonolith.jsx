@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'react-qr-code';
 
-const ROTATION_INTERVAL = 15000; // 8 secondes
+const ROTATION_INTERVAL = 8000; // 8 secondes
 
 const CenterMonolith = ({ isExpanded, seanceId }) => { 
   const [token, setToken] = useState("--- ---");
