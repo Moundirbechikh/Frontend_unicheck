@@ -1,22 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle2, XCircle, Loader2, QrCode,
   Keyboard, MapPin, Smartphone, AlertTriangle,
-  Send, RotateCcw
+  Send, RotateCcw, Camera
 } from 'lucide-react';
 
-const API          = 'https://backend-unicheck.onrender.com';
-const SCANNER_ID   = 'student-qr-reader';
+const API        = 'https://backend-unicheck.onrender.com';
+const SCANNER_ID = 'student-qr-reader';
 
-// ── DeviceId stable basé sur un fingerprint navigateur ───────────────────────
+// ── Détection mobile ─────────────────────────────────────────────────────────
+const isMobile = () =>
+  /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent)
+  || window.innerWidth < 768;
+
+// ── DeviceId stable ───────────────────────────────────────────────────────────
 const getOrCreateDeviceId = () => {
   let id = localStorage.getItem('unicheck_device_id');
   if (!id) {
     const fp = [
       navigator.userAgent,
-      `${window.screen.width}x${window.screen.height}`, 
+      `${screen.width}x${screen.height}`,
       navigator.language || '',
       String(new Date().getTimezoneOffset()),
       String(navigator.hardwareConcurrency || 0),
@@ -24,7 +29,7 @@ const getOrCreateDeviceId = () => {
     let hash = 0;
     for (let i = 0; i < fp.length; i++) {
       hash = ((hash << 5) - hash) + fp.charCodeAt(i);
-      hash = hash & hash; // Convertir en 32 bits
+      hash = hash & hash;
     }
     id = 'DEV_' + Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
     localStorage.setItem('unicheck_device_id', id);
@@ -35,108 +40,172 @@ const getOrCreateDeviceId = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
 
-  const [mode,        setMode]        = useState('camera'); // 'camera' | 'manual'
-  const [manualToken, setManualToken] = useState('');
-  const [gpsStatus,   setGpsStatus]   = useState('pending'); // pending | ok | error
-  const [gpsCoords,   setGpsCoords]   = useState(null);
-  const [status,      setStatus]      = useState('idle');    // idle | loading | success | error
-  const [result,      setResult]      = useState(null);      // { message, heure }
+  const [mode,          setMode]          = useState('camera');
+  const [manualToken,   setManualToken]   = useState('');
+  const [gpsStatus,     setGpsStatus]     = useState('idle');  // idle | pending | ok | error
+  const [gpsCoords,     setGpsCoords]     = useState(null);
+  const [status,        setStatus]        = useState('idle');  // idle | loading | success | error
+  const [result,        setResult]        = useState(null);
+  // Caméras disponibles (desktop uniquement)
+  const [cameras,       setCameras]       = useState([]);
+  const [selectedCamId, setSelectedCamId] = useState(null);
 
-  const scannerRef    = useRef(null);
-  const instanceRef   = useRef(null);
+  const scannerDivRef = useRef(null);
+  const scannerRef    = useRef(null);   // instance Html5Qrcode
   const processingRef = useRef(false);
   const deviceId      = useRef(getOrCreateDeviceId());
+  const mobile        = useRef(isMobile());
 
-  // ── Acquérir GPS à l'ouverture ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    console.log(">>> [DEBUG FRONTEND] Ouverture de la modale. Demande des coordonnées GPS...");
-    setGpsStatus('pending');
-    setGpsCoords(null);
-
+  // ── GPS ──────────────────────────────────────────────────────────────────
+  const requestGps = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      console.log(">>> [DEBUG FRONTEND] ERREUR : La géolocalisation n'est pas supportée par ce navigateur.");
       setGpsStatus('error');
       return;
     }
-    
+    setGpsStatus('pending');
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log(">>> [DEBUG FRONTEND] GPS acquis avec succès : Lat=", pos.coords.latitude, " Lng=", pos.coords.longitude);
         setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setGpsStatus('ok');
       },
-      (err) => {
-        console.log(">>> [DEBUG FRONTEND] ERREUR GPS : Impossible de récupérer la position. Code erreur:", err.code, "Message:", err.message);
-        setGpsStatus('error');
+      () => {
+        // Fallback basse précision
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setGpsStatus('ok');
+          },
+          () => setGpsStatus('error'),
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  }, [isOpen]);
+  }, []);
 
-  // ── Reset complet à la fermeture ───────────────────────────────────────────
+  // ── Réinitialisation à la fermeture ──────────────────────────────────────
   useEffect(() => {
     if (!isOpen) {
-      console.log(">>> [DEBUG FRONTEND] Fermeture de la modale. Nettoyage...");
-      instanceRef.current?.clear().catch(() => {});
-      instanceRef.current  = null;
+      stopScanner();
       processingRef.current = false;
       setStatus('idle');
       setResult(null);
       setManualToken('');
       setMode('camera');
+      setGpsStatus('idle');
+      setGpsCoords(null);
+      setCameras([]);
+      setSelectedCamId(null);
     }
   }, [isOpen]);
 
-  // ── Init scanner caméra ────────────────────────────────────────────────────
+  // ── Lister les caméras disponibles (desktop) ─────────────────────────────
+  useEffect(() => {
+    if (!isOpen || mobile.current) return;
+
+    Html5Qrcode.getCameras()
+      .then(devices => {
+        if (devices && devices.length > 0) {
+          setCameras(devices);
+          // Préférer la caméra "back" ou "rear" si disponible, sinon la première
+          const back = devices.find(d =>
+            /back|rear|environment/i.test(d.label)
+          );
+          setSelectedCamId((back || devices[0]).id);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
+
+  // ── Arrêter le scanner ───────────────────────────────────────────────────
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        // 2 = SCANNING
+        if (state === 2) await scannerRef.current.stop();
+      } catch {}
+      scannerRef.current = null;
+    }
+  };
+
+  // ── Démarrer le scanner ──────────────────────────────────────────────────
+  const startScanner = useCallback(async () => {
+    if (!scannerDivRef.current) return;
+    await stopScanner();
+
+    const qr = new Html5Qrcode(SCANNER_ID, {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      verbose: false,
+    });
+    scannerRef.current = qr;
+
+    const config = {
+      fps:      15,
+      qrbox:    { width: 230, height: 230 },
+      aspectRatio: 1.0,
+    };
+
+    // Mobile : caméra arrière uniquement
+    // Desktop : caméra sélectionnée par l'utilisateur
+    try {
+      if (mobile.current) {
+        await qr.start(
+          { facingMode: { exact: "environment" } },
+          config,
+          async (decoded) => {
+            if (processingRef.current) return;
+            processingRef.current = true;
+            await soumettre(decoded);
+          },
+          () => {}
+        );
+      } else if (selectedCamId) {
+        await qr.start(
+          selectedCamId,
+          config,
+          async (decoded) => {
+            if (processingRef.current) return;
+            processingRef.current = true;
+            await soumettre(decoded);
+          },
+          () => {}
+        );
+      }
+    } catch (err) {
+      // Fallback : essai sans contrainte exacte
+      try {
+        await qr.start(
+          { facingMode: "environment" },
+          config,
+          async (decoded) => {
+            if (processingRef.current) return;
+            processingRef.current = true;
+            await soumettre(decoded);
+          },
+          () => {}
+        );
+      } catch (err2) {
+        console.error("Caméra inaccessible :", err2);
+      }
+    }
+  }, [selectedCamId]);
+
+  // ── Lancer le scanner quand mode = camera + idle ─────────────────────────
   useEffect(() => {
     if (!isOpen || mode !== 'camera' || status !== 'idle') return;
 
-    console.log(">>> [DEBUG FRONTEND] Initialisation du scanner caméra...");
-    const timer = setTimeout(() => {
-      if (!scannerRef.current) return;
-
-      const scanner = new Html5QrcodeScanner(
-        SCANNER_ID,
-        {
-          fps:            10,
-          qrbox:          { width: 230, height: 230 },
-          aspectRatio:    1.0,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-          showTorchButtonIfSupported: true,
-        },
-        false
-      );
-
-      scanner.render(
-        async (decodedText) => {
-          if (processingRef.current) {
-            console.log(">>> [DEBUG FRONTEND] QR Code détecté, mais un traitement est déjà en cours. Ignoré.");
-            return;
-          }
-          console.log(">>> [DEBUG FRONTEND] QR Code lu avec succès via caméra :", decodedText);
-          processingRef.current = true;
-          await soumettre(decodedText);
-        },
-        () => {} // Ignorer les logs de scanning frame
-      );
-
-      instanceRef.current = scanner;
-    }, 350);
-
+    const timer = setTimeout(() => startScanner(), 400);
     return () => {
       clearTimeout(timer);
-      instanceRef.current?.clear().catch(() => {});
-      instanceRef.current = null;
+      stopScanner();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, mode, status]);
+  }, [isOpen, mode, status, startScanner]);
 
-  // ── Fonction de validation commune (caméra + manuel) ──────────────────────
+  // ── Validation commune ────────────────────────────────────────────────────
   const soumettre = useCallback(async (token) => {
     if (!token?.trim()) return;
-    
-    console.log(">>> [DEBUG FRONTEND] Préparation de la requête pour le token :", token);
     setStatus('loading');
 
     const payload = {
@@ -147,8 +216,6 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
       deviceId:   deviceId.current,
     };
 
-    console.log(">>> [DEBUG FRONTEND] Payload envoyé à l'API :", payload);
-
     try {
       const res = await fetch(`${API}/api/presences/scan`, {
         method:  'POST',
@@ -158,24 +225,15 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
         },
         body: JSON.stringify(payload),
       });
-      
       const data = await res.json();
-      console.log(">>> [DEBUG FRONTEND] Réponse reçue de l'API :", data);
 
       if (data.success) {
-        console.log(">>> [DEBUG FRONTEND] Succès du pointage.");
         setResult({ message: data.message, heure: data.heure || '--:--' });
         setStatus('success');
-        // Fermer automatiquement après 3.5 sec
-        setTimeout(() => {
-          onScanSuccess?.(data.message);
-          onClose();
-        }, 3500);
+        setTimeout(() => { onScanSuccess?.(data.message); onClose(); }, 3500);
       } else {
-        console.log(">>> [DEBUG FRONTEND] Échec du pointage renvoyé par l'API.");
         setResult({ message: data.message || 'Présence refusée.' });
         setStatus('error');
-        // Permettre de réessayer après 3 sec
         setTimeout(() => {
           setStatus('idle');
           setResult(null);
@@ -183,8 +241,7 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
           processingRef.current = false;
         }, 3000);
       }
-    } catch (error) {
-      console.error(">>> [DEBUG FRONTEND] Erreur réseau lors du pointage :", error);
+    } catch {
       setResult({ message: 'Impossible de joindre le serveur.' });
       setStatus('error');
       setTimeout(() => {
@@ -196,51 +253,48 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
   }, [gpsCoords, studentId, onScanSuccess, onClose]);
 
   const handleManualSubmit = () => {
-    if (!manualToken.trim() || processingRef.current || gpsStatus === 'pending') {
-        console.log(">>> [DEBUG FRONTEND] Blocage handleManualSubmit. manualToken=", manualToken, " processing=", processingRef.current, " gpsStatus=", gpsStatus);
-        return;
-    }
-    console.log(">>> [DEBUG FRONTEND] Soumission manuelle déclenchée.");
+    if (!manualToken.trim() || processingRef.current) return;
     processingRef.current = true;
     soumettre(manualToken);
   };
 
   if (!isOpen) return null;
 
-  // Badges statut GPS + device
+  // ── Badges ────────────────────────────────────────────────────────────────
   const GpsBadge = () => (
-    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest
-      ${gpsStatus === 'ok'      ? 'bg-[#006c49]/30 text-green-400'
-      : gpsStatus === 'error'   ? 'bg-orange-500/20 text-orange-400'
-      :                           'bg-white/10 text-gray-500'}`}>
+    <button
+      onClick={gpsStatus === 'idle' || gpsStatus === 'error' ? requestGps : undefined}
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black
+                  uppercase tracking-widest transition-all
+        ${gpsStatus === 'ok'      ? 'bg-[#006c49]/30 text-green-400 cursor-default'
+        : gpsStatus === 'pending' ? 'bg-white/10 text-gray-500 cursor-default'
+        : gpsStatus === 'error'   ? 'bg-orange-500/20 text-orange-400 cursor-pointer hover:bg-orange-500/30'
+        :                           'bg-white/10 text-gray-500 cursor-pointer hover:bg-white/20'}`}
+    >
       <MapPin size={10} />
-      {gpsStatus === 'ok' ? 'GPS ✓' : gpsStatus === 'error' ? 'GPS ✗' : 'GPS…'}
-    </div>
-  );
-
-  const DeviceBadge = () => (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-[10px] font-black uppercase tracking-widest text-gray-500">
-      <Smartphone size={10} />
-      {deviceId.current.substring(0, 10)}…
-    </div>
+      {gpsStatus === 'ok'      ? 'GPS ✓'
+      : gpsStatus === 'pending' ? 'GPS…'
+      : gpsStatus === 'error'   ? 'GPS ✗ (tap)'
+      :                           'GPS off (tap)'}
+    </button>
   );
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 30 }}
         className="fixed inset-0 z-[200] bg-[#1a1c1e] flex flex-col overflow-hidden"
         style={{ fontFamily: "'Inter', sans-serif" }}
       >
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
+        {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="px-6 pt-10 pb-4 shrink-0">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#006c49] mb-1">
-                Unicheck · Sécurisé
+                Unicheck · Pointage
               </p>
               <h2 style={{ fontFamily: "'Manrope', sans-serif" }}
                 className="text-3xl font-black text-white tracking-tighter leading-none">
@@ -259,42 +313,68 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
           </div>
 
           {/* Badges */}
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
             <GpsBadge />
-            <DeviceBadge />
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10
                             text-[10px] font-black uppercase tracking-widest text-gray-500">
-              ≤ 20m max
+              <Smartphone size={10} />
+              {deviceId.current.substring(0, 10)}…
             </div>
+            {!mobile.current && cameras.length > 1 && status === 'idle' && mode === 'camera' && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10
+                              text-[10px] font-black uppercase tracking-widest text-gray-500">
+                <Camera size={10} />
+                {cameras.length} cams
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── Tabs ────────────────────────────────────────────────────────── */}
+        {/* ── Tabs ──────────────────────────────────────────────────────── */}
         {status === 'idle' && (
           <div className="px-6 pb-4 shrink-0">
             <div className="bg-white/5 rounded-2xl p-1 flex gap-1 border border-white/5">
               <button onClick={() => setMode('camera')}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
                             text-xs font-black uppercase tracking-widest transition-all
-                  ${mode === 'camera' ? 'bg-[#006c49] text-white shadow-lg shadow-[#006c49]/30'
-                  :                     'text-gray-600 hover:text-gray-400'}`}>
+                  ${mode === 'camera'
+                    ? 'bg-[#006c49] text-white shadow-lg shadow-[#006c49]/30'
+                    : 'text-gray-600 hover:text-gray-400'}`}>
                 <QrCode size={14} /> QR Caméra
               </button>
               <button onClick={() => setMode('manual')}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
                             text-xs font-black uppercase tracking-widest transition-all
-                  ${mode === 'manual' ? 'bg-white/15 text-white shadow-sm'
-                  :                     'text-gray-600 hover:text-gray-400'}`}>
+                  ${mode === 'manual'
+                    ? 'bg-white/15 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-400'}`}>
                 <Keyboard size={14} /> Code Manuel
               </button>
             </div>
+
+            {/* Sélecteur caméra desktop */}
+            {!mobile.current && cameras.length > 1 && mode === 'camera' && (
+              <div className="mt-2">
+                <select
+                  value={selectedCamId || ''}
+                  onChange={e => { setSelectedCamId(e.target.value); stopScanner(); }}
+                  className="w-full bg-white/5 border border-white/10 text-gray-400
+                             rounded-xl px-4 py-2.5 text-xs font-bold outline-none
+                             focus:border-[#006c49]/40 transition-all"
+                >
+                  {cameras.map(cam => (
+                    <option key={cam.id} value={cam.id}>{cam.label || `Caméra ${cam.id}`}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── Zone principale ──────────────────────────────────────────────── */}
+        {/* ── Zone principale ───────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 pb-10 relative">
 
-          {/* ── OVERLAY résultat ─────────────────────────────────────────── */}
+          {/* Overlay résultat */}
           <AnimatePresence>
             {status !== 'idle' && (
               <motion.div
@@ -305,11 +385,8 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
               >
                 {/* Loading */}
                 {status === 'loading' && (
-                  <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="flex flex-col items-center gap-5"
-                  >
+                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                    className="flex flex-col items-center gap-5">
                     <div className="w-24 h-24 rounded-full border-2 border-white/10 bg-white/5
                                     flex items-center justify-center">
                       <Loader2 size={40} className="text-[#006c49] animate-spin" />
@@ -317,11 +394,9 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                     <div className="text-center space-y-1">
                       <p style={{ fontFamily: "'Manrope', sans-serif" }}
                         className="text-white font-black text-xl tracking-tighter">
-                        Vérification...
+                        Vérification…
                       </p>
-                      <p className="text-gray-600 text-xs font-bold">
-                        Token · GPS · Appareil
-                      </p>
+                      <p className="text-gray-600 text-xs font-bold">Token · GPS · Appareil</p>
                     </div>
                   </motion.div>
                 )}
@@ -334,7 +409,6 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                     transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                     className="flex flex-col items-center gap-6 w-full max-w-xs"
                   >
-                    {/* Cercle animé */}
                     <div className="relative">
                       <div className="w-28 h-28 rounded-full bg-[#006c49] flex items-center
                                       justify-center shadow-2xl shadow-[#006c49]/40">
@@ -347,7 +421,6 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                         className="absolute inset-0 rounded-full border-2 border-[#006c49]"
                       />
                     </div>
-
                     <div className="text-center">
                       <p style={{ fontFamily: "'Manrope', sans-serif" }}
                         className="text-white font-black text-2xl tracking-tighter">
@@ -358,14 +431,10 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                         {result?.heure}
                       </p>
                     </div>
-
                     <div className="w-full bg-[#006c49]/15 border border-[#006c49]/25
                                     rounded-2xl px-5 py-4 text-center">
-                      <p className="text-green-300 text-sm font-bold leading-relaxed">
-                        {result?.message}
-                      </p>
+                      <p className="text-green-300 text-sm font-bold">{result?.message}</p>
                     </div>
-
                     <div className="flex items-center gap-2 text-gray-600">
                       <Loader2 size={12} className="animate-spin" />
                       <p className="text-[11px] font-bold uppercase tracking-widest">
@@ -387,25 +456,22 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                                     flex items-center justify-center">
                       <XCircle size={44} className="text-red-400" />
                     </div>
-
                     <div className="text-center">
                       <p style={{ fontFamily: "'Manrope', sans-serif" }}
                         className="text-white font-black text-xl tracking-tighter">
                         Présence refusée
                       </p>
                     </div>
-
                     <div className="w-full bg-red-500/10 border border-red-500/20
                                     rounded-2xl px-5 py-4 text-center">
                       <p className="text-red-300 text-sm font-bold leading-relaxed">
                         {result?.message}
                       </p>
                     </div>
-
                     <div className="flex items-center gap-2 text-gray-600">
                       <RotateCcw size={12} />
                       <p className="text-[11px] font-bold uppercase tracking-widest">
-                        Vous pouvez réessayer…
+                        Réessayez…
                       </p>
                     </div>
                   </motion.div>
@@ -416,38 +482,37 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
 
           {/* ── Mode Caméra ─────────────────────────────────────────────── */}
           {mode === 'camera' && status === 'idle' && (
-            <div className="w-full max-w-sm space-y-4">
+            <div className="w-full max-w-sm space-y-3">
               <div
                 id={SCANNER_ID}
-                ref={scannerRef}
+                ref={scannerDivRef}
                 className="w-full rounded-[2rem] overflow-hidden border-2 border-[#006c49]/30
-                           shadow-2xl shadow-[#006c49]/10"
+                           shadow-2xl shadow-[#006c49]/10 bg-black/20"
+                style={{ minHeight: '260px' }}
               />
-
-              {gpsStatus === 'error' && (
-                <div className="flex items-start gap-2.5 bg-orange-500/10 border border-orange-500/20
-                                rounded-2xl px-4 py-3">
-                  <AlertTriangle size={14} className="text-orange-400 shrink-0 mt-0.5" />
-                  <p className="text-orange-300 text-xs font-bold leading-relaxed">
-                    GPS non disponible. La vérification de distance est désactivée pour cette session.
+              {gpsStatus === 'ok' && (
+                <div className="flex items-center gap-2 justify-center text-[#006c49]">
+                  <MapPin size={11} />
+                  <p className="text-[11px] font-bold uppercase tracking-widest">
+                    GPS actif · Vérification distance ON
                   </p>
                 </div>
               )}
-
+              {(gpsStatus === 'idle' || gpsStatus === 'error') && (
+                <button onClick={requestGps}
+                  className="w-full flex items-center justify-center gap-2 py-3
+                             bg-orange-500/10 border border-orange-500/20 rounded-2xl
+                             text-orange-400 text-xs font-black uppercase tracking-widest
+                             hover:bg-orange-500/20 transition-all">
+                  <MapPin size={13} />
+                  {gpsStatus === 'error' ? 'GPS refusé — réessayer' : 'Activer le GPS'}
+                </button>
+              )}
               {gpsStatus === 'pending' && (
                 <div className="flex items-center gap-2 justify-center text-gray-600">
                   <Loader2 size={12} className="animate-spin" />
                   <p className="text-[11px] font-bold uppercase tracking-widest">
-                    Acquisition GPS…
-                  </p>
-                </div>
-              )}
-
-              {gpsStatus === 'ok' && (
-                <div className="flex items-center gap-2 justify-center text-[#006c49]">
-                  <MapPin size={12} />
-                  <p className="text-[11px] font-bold uppercase tracking-widest">
-                    GPS actif · Vérification distance activée
+                    GPS en cours…
                   </p>
                 </div>
               )}
@@ -457,8 +522,6 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
           {/* ── Mode Manuel ─────────────────────────────────────────────── */}
           {mode === 'manual' && status === 'idle' && (
             <div className="w-full max-w-sm space-y-6">
-
-              {/* Picto */}
               <div className="flex flex-col items-center gap-3">
                 <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl
                                 flex items-center justify-center">
@@ -469,7 +532,6 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                 </p>
               </div>
 
-              {/* Champ token */}
               <input
                 type="text"
                 value={manualToken}
@@ -485,38 +547,34 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               />
 
-              {/* Avertissement GPS */}
-              {gpsStatus === 'error' && (
-                <div className="flex items-start gap-2.5 bg-orange-500/10 border border-orange-500/20
-                                rounded-2xl px-4 py-3">
-                  <AlertTriangle size={14} className="text-orange-400 shrink-0 mt-0.5" />
-                  <p className="text-orange-300 text-xs font-bold leading-relaxed">
-                    GPS non disponible. La vérification de distance est désactivée.
-                  </p>
-                </div>
+              {/* GPS optionnel */}
+              {(gpsStatus === 'idle' || gpsStatus === 'error') && (
+                <button onClick={requestGps}
+                  className="w-full flex items-center justify-center gap-2 py-3
+                             bg-orange-500/10 border border-orange-500/20 rounded-2xl
+                             text-orange-400 text-xs font-black uppercase tracking-widest
+                             hover:bg-orange-500/20 transition-all">
+                  <MapPin size={13} />
+                  {gpsStatus === 'error' ? 'GPS refusé — réessayer' : 'Activer le GPS (recommandé)'}
+                </button>
               )}
 
-              {/* Bouton valider */}
               <button
                 onClick={handleManualSubmit}
-                disabled={!manualToken.trim() || manualToken.length < 6 || gpsStatus === 'pending'}
+                disabled={!manualToken.trim() || manualToken.length < 6}
                 className="w-full py-5 rounded-[1.8rem] font-black text-sm uppercase
                            tracking-[0.2em] transition-all flex items-center justify-center gap-3
                            disabled:bg-white/5 disabled:text-gray-700 disabled:cursor-not-allowed
-                           bg-[#006c49] hover:bg-[#005a3c] text-white shadow-xl shadow-[#006c49]/20
-                           active:scale-[0.98]"
+                           bg-[#006c49] hover:bg-[#005a3c] text-white shadow-xl
+                           shadow-[#006c49]/20 active:scale-[0.98]"
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
-                {gpsStatus === 'pending' ? (
-                  <><Loader2 size={18} className="animate-spin" /> Attente GPS…</>
-                ) : (
-                  <><Send size={18} /> Valider la présence</>
-                )}
+                <Send size={18} /> Valider la présence
               </button>
 
               {manualToken.length > 0 && manualToken.length < 6 && (
                 <p className="text-center text-gray-700 text-xs font-bold">
-                  Format attendu : XXX-XXX (ex: ABK-7Y2)
+                  Format : XXX-XXX (ex: ABK-7Y2)
                 </p>
               )}
             </div>
