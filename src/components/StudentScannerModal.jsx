@@ -21,7 +21,8 @@ const getOrCreateDeviceId = () => {
   if (!id) {
     const fp = [
       navigator.userAgent,
-      `${screen.width}x${screen.height}`,
+      // CORRECTION ICI : Ajout de 'window.' avant 'screen'
+      `${window.screen.width}x${window.screen.height}`,
       navigator.language || '',
       String(new Date().getTimezoneOffset()),
       String(navigator.hardwareConcurrency || 0),
