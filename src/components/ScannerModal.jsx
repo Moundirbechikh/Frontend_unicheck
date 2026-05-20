@@ -1,251 +1,266 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { X, CheckCircle2, XCircle, Loader2, ScanLine, Camera } from 'lucide-react';
 
-const API = 'https://backend-unicheck.onrender.com';
+const API        = 'https://backend-unicheck.onrender.com';
+const SCANNER_ID = 'prof-qr-reader';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ScannerModal — scan des cartes étudiants par le professeur
-// Le scanner reste actif après chaque scan.
-// Un overlay coloré de 2 secondes indique le résultat.
-// ─────────────────────────────────────────────────────────────────────────────
+const isMobile = () =>
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+
 const ScannerModal = ({ isOpen, onClose, seanceId }) => {
-  // overlay : null | { type: 'success'|'doublon'|'error', nom?, message?, heure? }
-  const [overlay,      setOverlay]      = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [status,        setStatus]        = useState('idle');
+  const [result,        setResult]        = useState(null);
+  const [cameras,       setCameras]       = useState([]);
+  const [selectedCamId, setSelectedCamId] = useState(null);
 
-  const scannerDivRef = useRef(null);
-  const instanceRef   = useRef(null);
-  const cooldownRef   = useRef(false);
-  const token         = localStorage.getItem('token');
+  const scannerRef  = useRef(null);
+  const divRef      = useRef(null);
+  const processingRef = useRef(false);
+  const mobile      = useRef(isMobile());
 
-  // ── Init scanner au montage / ouverture ───────────────────────────────────
+  // ── Lister les caméras (desktop) ────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || mobile.current) return;
+    Html5Qrcode.getCameras()
+      .then(devs => {
+        if (devs?.length > 0) {
+          setCameras(devs);
+          const back = devs.find(d => /back|rear|environment/i.test(d.label));
+          setSelectedCamId((back || devs[0]).id);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
-    setOverlay(null);
-    setIsProcessing(false);
-    cooldownRef.current = false;
+  // ── Reset fermeture ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isOpen) {
+      stopScanner();
+      processingRef.current = false;
+      setStatus('idle');
+      setResult(null);
+      setCameras([]);
+      setSelectedCamId(null);
+    }
+  }, [isOpen]);
 
-    const timer = setTimeout(() => {
-      if (!scannerDivRef.current) return;
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2) await scannerRef.current.stop();
+      } catch {}
+      scannerRef.current = null;
+    }
+  };
 
-      const scanner = new Html5QrcodeScanner(
-        'qr-reader-prof',
-        {
-          fps:            20,
-          qrbox:          { width: 240, height: 240 },
-          rememberLastUsedCamera:     true,
-          supportedScanTypes:         [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-          showTorchButtonIfSupported: true,
-          showZoomSliderIfSupported:  true,
-        },
-        false
-      );
+  const startScanner = async () => {
+    if (!divRef.current) return;
+    await stopScanner();
 
-      scanner.render(
-        async (decodedText) => {
-          // ── Anti-doublon strict ──────────────────────────────────────────
-          if (cooldownRef.current) return;
-          cooldownRef.current = true;
-          setIsProcessing(true);
+    const qr = new Html5Qrcode(SCANNER_ID, {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      verbose: false,
+    });
+    scannerRef.current = qr;
 
-          try {
-            const res  = await fetch(`${API}/api/presences/scan-carte`, {
-              method:  'POST',
-              headers: {
-                'Content-Type':  'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({ codeQrFixe: decodedText, seanceId }),
-            });
-            const data = await res.json();
-
-            setIsProcessing(false);
-
-            if (data.success) {
-              setOverlay({ type: 'success', nom: data.etudiantNom, heure: data.heure });
-            } else if (data.etudiantNom) {
-              // Étudiant trouvé mais déjà présent
-              setOverlay({ type: 'doublon', nom: data.etudiantNom });
-            } else {
-              setOverlay({ type: 'error', message: data.message || "Code non reconnu." });
-            }
-          } catch {
-            setIsProcessing(false);
-            setOverlay({ type: 'error', message: "Erreur de connexion au serveur." });
-          }
-
-          // ── Effacer l'overlay après 2 sec et réactiver le scan ──────────
-          setTimeout(() => {
-            setOverlay(null);
-            cooldownRef.current = false;
-          }, 2000);
-        },
-        () => {} // Ignorer les erreurs "pas de QR trouvé"
-      );
-
-      instanceRef.current = scanner;
-    }, 300);
-
-    return () => {
-      clearTimeout(timer);
-      instanceRef.current?.clear().catch(() => {});
-      instanceRef.current = null;
-      cooldownRef.current = false;
+    const config = { fps: 15, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 };
+    const onSuccess = async (decoded) => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      await soumettre(decoded);
     };
-  }, [isOpen, seanceId]);
+
+    try {
+      if (mobile.current) {
+        await qr.start({ facingMode: { exact: 'environment' } }, config, onSuccess, () => {});
+      } else if (selectedCamId) {
+        await qr.start(selectedCamId, config, onSuccess, () => {});
+      }
+    } catch {
+      try {
+        await qr.start({ facingMode: 'environment' }, config, onSuccess, () => {});
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || status !== 'idle') return;
+    const timer = setTimeout(startScanner, 400);
+    return () => { clearTimeout(timer); stopScanner(); };
+  }, [isOpen, status, selectedCamId]);
+
+  const soumettre = async (codeQrFixe) => {
+    if (!codeQrFixe || !seanceId) return;
+    setStatus('loading');
+
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API}/api/presences/scan-carte`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ codeQrFixe: codeQrFixe.trim(), seanceId }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setResult({ message: data.message, nom: data.etudiantNom, heure: data.heure });
+        setStatus('success');
+        setTimeout(() => {
+          setStatus('idle');
+          setResult(null);
+          processingRef.current = false;
+        }, 2500);
+      } else {
+        setResult({ message: data.message });
+        setStatus('error');
+        setTimeout(() => {
+          setStatus('idle');
+          setResult(null);
+          processingRef.current = false;
+        }, 2500);
+      }
+    } catch {
+      setResult({ message: 'Erreur réseau.' });
+      setStatus('error');
+      setTimeout(() => {
+        setStatus('idle');
+        setResult(null);
+        processingRef.current = false;
+      }, 2000);
+    }
+  };
 
   if (!isOpen) return null;
 
-  const overlayConfig = overlay ? {
-    success: {
-      bg:   'bg-[#006c49]/90',
-      Icon: CheckCircle2,
-      iconColor: 'text-white',
-      iconSize:  44,
-    },
-    doublon: {
-      bg:   'bg-orange-500/90',
-      Icon: AlertCircle,
-      iconColor: 'text-white',
-      iconSize:  40,
-    },
-    error: {
-      bg:   'bg-red-600/90',
-      Icon: AlertCircle,
-      iconColor: 'text-white',
-      iconSize:  40,
-    },
-  }[overlay.type] : null;
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-[#1a1c1e]/96 backdrop-blur-xl
-                 flex flex-col items-center justify-center p-6"
-      style={{ fontFamily: "'Inter', sans-serif" }}
-    >
-      {/* Header */}
-      <div className="w-full max-w-sm flex items-center justify-between mb-5">
-        <div>
-          <h2 style={{ fontFamily: "'Manrope', sans-serif" }}
-            className="font-black text-white text-xl uppercase tracking-tighter">
-            Scanner Carte
-          </h2>
-          <p className="text-gray-600 text-[11px] font-bold uppercase tracking-widest mt-0.5">
-            Séance #{seanceId} · QR Fixe Étudiant
-          </p>
-        </div>
-        <button onClick={onClose}
-          className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center
-                     justify-center text-gray-400 hover:text-white transition-all
-                     border border-white/10">
-          <X size={18} strokeWidth={2.5} />
-        </button>
-      </div>
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center
+                   justify-center p-4"
+      >
+        <motion.div
+          initial={{ scale: 0.92, opacity: 0 }}
+          animate={{ scale: 1,    opacity: 1 }}
+          exit={{ scale: 0.92,    opacity: 0 }}
+          className="bg-[#1a1c1e] rounded-[2.5rem] w-full max-w-sm overflow-hidden
+                     border border-white/10 shadow-2xl"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 pt-6 pb-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#006c49]">
+                Pointage Professeur
+              </p>
+              <h3 style={{ fontFamily: "'Manrope', sans-serif" }}
+                className="text-xl font-black text-white tracking-tighter">
+                Scanner carte étudiant
+              </h3>
+            </div>
+            <button onClick={onClose}
+              className="w-9 h-9 bg-white/10 hover:bg-red-500/20 hover:text-red-400
+                         rounded-2xl flex items-center justify-center text-gray-400
+                         transition-all border border-white/10">
+              <X size={16} strokeWidth={2.5} />
+            </button>
+          </div>
 
-      {/* Zone scanner + overlay */}
-      <div className="relative w-full max-w-sm">
-
-        {/* Cadre scanner */}
-        <div
-          id="qr-reader-prof"
-          ref={scannerDivRef}
-          className={`w-full rounded-[2rem] overflow-hidden transition-all duration-300
-            ${overlay?.type === 'success' ? 'ring-4 ring-[#006c49]/60'
-            : overlay?.type === 'doublon' ? 'ring-4 ring-orange-500/50'
-            : overlay?.type === 'error'   ? 'ring-4 ring-red-500/50'
-            :                               'ring-2 ring-white/10'}`}
-        />
-
-        {/* ── Overlay résultat 2 secondes ─────────────────────────────── */}
-        <AnimatePresence>
-          {(isProcessing || overlay) && (
-            <motion.div
-              key={overlay?.type || 'processing'}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className={`absolute inset-0 rounded-[2rem] flex flex-col items-center
-                          justify-center gap-3 p-6 text-white backdrop-blur-sm
-                ${isProcessing
-                    ? 'bg-[#1a1c1e]/80'
-                    : overlayConfig?.bg || 'bg-white/10'}`}
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 size={40} className="animate-spin" />
-                  <p className="font-black text-sm uppercase tracking-widest">
-                    Vérification…
-                  </p>
-                </>
-              ) : overlay && overlayConfig ? (
-                <>
-                  <overlayConfig.Icon
-                    size={overlayConfig.iconSize}
-                    className={overlayConfig.iconColor}
-                    strokeWidth={2}
-                  />
-
-                  {overlay.type === 'success' && (
-                    <>
-                      <p style={{ fontFamily: "'Manrope', sans-serif" }}
-                        className="font-black text-xl text-center leading-tight">
-                        {overlay.nom}
-                      </p>
-                      <div className="bg-white/20 px-4 py-1.5 rounded-full">
-                        <p className="text-white font-black text-sm">{overlay.heure}</p>
-                      </div>
-                    </>
-                  )}
-
-                  {overlay.type === 'doublon' && (
-                    <>
-                      <p style={{ fontFamily: "'Manrope', sans-serif" }}
-                        className="font-black text-lg text-center leading-tight">
-                        {overlay.nom}
-                      </p>
-                      <p className="text-white/80 text-xs font-black uppercase tracking-widest">
-                        Déjà marqué présent
-                      </p>
-                    </>
-                  )}
-
-                  {overlay.type === 'error' && (
-                    <p className="text-white/90 text-sm font-bold text-center leading-relaxed px-2">
-                      {overlay.message}
-                    </p>
-                  )}
-                </>
-              ) : null}
-            </motion.div>
+          {/* Sélecteur caméra desktop */}
+          {!mobile.current && cameras.length > 1 && status === 'idle' && (
+            <div className="px-6 pb-3">
+              <select
+                value={selectedCamId || ''}
+                onChange={e => { setSelectedCamId(e.target.value); stopScanner(); }}
+                className="w-full bg-white/5 border border-white/10 text-gray-400
+                           rounded-xl px-4 py-2.5 text-xs font-bold outline-none
+                           focus:border-[#006c49]/40 transition-all"
+              >
+                {cameras.map(cam => (
+                  <option key={cam.id} value={cam.id}>{cam.label || `Caméra ${cam.id}`}</option>
+                ))}
+              </select>
+            </div>
           )}
-        </AnimatePresence>
-      </div>
 
-      {/* Indicateur visuel permanent */}
-      <div className="mt-5 flex items-center gap-3">
-        <div className={`w-2 h-2 rounded-full transition-colors duration-300
-          ${overlay?.type === 'success' ? 'bg-[#006c49] animate-pulse'
-          : overlay?.type === 'doublon' ? 'bg-orange-400 animate-pulse'
-          : overlay?.type === 'error'   ? 'bg-red-400 animate-pulse'
-          : isProcessing                ? 'bg-blue-400 animate-pulse'
-          :                               'bg-white/20 animate-pulse'}`}
-        />
-        <p className="text-gray-600 text-[11px] font-bold uppercase tracking-widest">
-          {overlay?.type === 'success' ? 'Présence enregistrée'
-          : overlay?.type === 'doublon' ? 'Déjà présent'
-          : overlay?.type === 'error'   ? 'Scan échoué'
-          : isProcessing                ? 'Traitement...'
-          :                              'En attente d\'une carte'}
-        </p>
-      </div>
-    </motion.div>
+          {/* Zone scanner */}
+          <div className="px-6 pb-6 relative min-h-[280px] flex flex-col items-center
+                          justify-center">
+            {/* Overlay résultat */}
+            <AnimatePresence>
+              {status !== 'idle' && (
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="absolute inset-0 flex flex-col items-center justify-center
+                             px-4 z-20 bg-[#1a1c1e]"
+                >
+                  {status === 'loading' && (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5
+                                      flex items-center justify-center">
+                        <Loader2 size={30} className="text-[#006c49] animate-spin" />
+                      </div>
+                      <p className="text-white font-black text-sm uppercase tracking-widest">
+                        Vérification…
+                      </p>
+                    </div>
+                  )}
+
+                  {status === 'success' && (
+                    <motion.div
+                      initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      className="flex flex-col items-center gap-4 text-center"
+                    >
+                      <div className="w-20 h-20 rounded-full bg-[#006c49] flex items-center
+                                      justify-center shadow-xl shadow-[#006c49]/30">
+                        <CheckCircle2 size={40} className="text-white" />
+                      </div>
+                      <div>
+                        <p style={{ fontFamily: "'Manrope', sans-serif" }}
+                          className="text-white font-black text-xl tracking-tighter">
+                          {result?.nom}
+                        </p>
+                        <p className="text-[#006c49] font-black text-3xl mt-1"
+                           style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          {result?.heure}
+                        </p>
+                      </div>
+                      <p className="text-green-300 text-sm font-bold">{result?.message}</p>
+                    </motion.div>
+                  )}
+
+                  {status === 'error' && (
+                    <motion.div
+                      initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      className="flex flex-col items-center gap-4 text-center"
+                    >
+                      <div className="w-20 h-20 rounded-full bg-red-500/15 border border-red-500/30
+                                      flex items-center justify-center">
+                        <XCircle size={36} className="text-red-400" />
+                      </div>
+                      <p className="text-red-300 text-sm font-bold">{result?.message}</p>
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Scanner div */}
+            <div
+              id={SCANNER_ID}
+              ref={divRef}
+              className="w-full rounded-[1.5rem] overflow-hidden border-2 border-[#006c49]/30
+                         shadow-xl bg-black/20"
+              style={{ minHeight: '240px' }}
+            />
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

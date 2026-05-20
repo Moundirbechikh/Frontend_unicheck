@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import LeftSidebar  from './LeftSidebar';
 import CenterMonolith from './CenterMonolith';
@@ -8,33 +8,27 @@ import RightFeed    from './RightFeed';
 import ScannerModal from './ScannerModal';
 import SearchModal  from './SearchModal';
 
+const API = 'https://backend-unicheck.onrender.com';
+
 export default function UnicheckSessionDashboard({ seance }) {
-  const [showLeft,       setShowLeft]       = useState(false);
-  const [showRight,      setShowRight]      = useState(false);
-  const [isScannerOpen,  setIsScannerOpen]  = useState(false);
-  const [isSearchOpen,   setIsSearchOpen]   = useState(false);
+  const [showLeft,        setShowLeft]        = useState(false);
+  const [showRight,       setShowRight]       = useState(false);
+  const [isScannerOpen,   setIsScannerOpen]   = useState(false);
+  const [isSearchOpen,    setIsSearchOpen]    = useState(false);
   const [presentStudents, setPresentStudents] = useState([]);
 
   // ── Fetch présences toutes les 3 secondes ──────────────────────────────────
   useEffect(() => {
     if (!seance?.id) return;
+    const token = localStorage.getItem('token');
 
     const fetchPresences = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res   = await fetch(
-          `https://backend-unicheck.onrender.com/api/presences/seance/${seance.id}`,
-          {
-            headers: {
-              'Content-Type':  'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-          }
-        );
+        const res = await fetch(`${API}/api/presences/seance/${seance.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         if (res.ok) setPresentStudents(await res.json());
-      } catch (err) {
-        console.error("❌ Erreur présences :", err);
-      }
+      } catch {}
     };
 
     fetchPresences();
@@ -51,12 +45,10 @@ export default function UnicheckSessionDashboard({ seance }) {
         <AnimatePresence>
           {showLeft && (
             <motion.div key="left"
-              initial={{ x: -300, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
+              initial={{ x: -300, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="w-[260px] shrink-0 h-full z-20"
-            >
+              className="w-[260px] shrink-0 h-full z-20">
               <LeftSidebar
                 onOpenSearch={() => setIsSearchOpen(true)}
                 onOpenScanner={() => setIsScannerOpen(true)}
@@ -68,42 +60,32 @@ export default function UnicheckSessionDashboard({ seance }) {
 
         <div className="flex-1 relative h-full min-w-0">
           {!showLeft && (
-            <button
-              onClick={() => setShowLeft(true)}
+            <button onClick={() => setShowLeft(true)}
               className="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-[#1a1c1e] text-white
                          w-9 h-16 rounded-r-3xl flex items-center justify-center shadow-xl
-                         hover:bg-[#006c49] transition-colors"
-            >
+                         hover:bg-[#006c49] transition-colors">
               <ChevronRight size={20} />
             </button>
           )}
           {!showRight && (
-            <button
-              onClick={() => setShowRight(true)}
+            <button onClick={() => setShowRight(true)}
               className="absolute right-0 top-1/2 -translate-y-1/2 z-30 bg-[#1a1c1e] text-white
                          w-9 h-16 rounded-l-3xl flex items-center justify-center shadow-xl
-                         hover:bg-[#006c49] transition-colors"
-            >
+                         hover:bg-[#006c49] transition-colors">
               <ChevronLeft size={20} />
             </button>
           )}
-
           <CenterMonolith isExpanded={!showLeft && !showRight} seanceId={seance?.id} />
         </div>
 
         <AnimatePresence>
           {showRight && (
             <motion.div key="right"
-              initial={{ x: 300, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
+              initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
               exit={{ x: 300, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="w-[280px] shrink-0 h-full z-20"
-            >
-              <RightFeed
-                presentStudents={presentStudents}
-                onClose={() => setShowRight(false)}
-              />
+              className="w-[280px] shrink-0 h-full z-20">
+              <RightFeed presentStudents={presentStudents} onClose={() => setShowRight(false)} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -131,7 +113,7 @@ export default function UnicheckSessionDashboard({ seance }) {
           <ScannerModal
             isOpen={isScannerOpen}
             onClose={() => setIsScannerOpen(false)}
-            seanceId={seance?.id}  
+            seanceId={seance?.id}
           />
         )}
         {isSearchOpen && (
@@ -154,8 +136,9 @@ function MobileTopBar({ onOpenSearch, onOpenScanner }) {
                       flex items-center gap-3 flex-1">
         <div className="relative shrink-0">
           <div className="absolute inset-0 bg-red-400 rounded-full blur-sm opacity-40 animate-pulse" />
-          <div className="w-8 h-8 bg-red-50 rounded-full flex items-center justify-center relative z-10 border border-red-100">
-            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse inline-block" />
+          <div className="w-8 h-8 bg-red-50 rounded-full flex items-center justify-center
+                          relative z-10 border border-red-100">
+            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
           </div>
         </div>
         <div>
@@ -174,16 +157,15 @@ function MobileTopBar({ onOpenSearch, onOpenScanner }) {
                    text-[#1a1c1e] hover:bg-gray-50 active:scale-95 transition-all">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <span className="text-[9px] font-black uppercase tracking-wider">Manuel</span>
       </button>
 
       <button onClick={onOpenScanner}
         className="bg-[#1a1c1e] rounded-[1.5rem] shadow-lg flex flex-col items-center
-                   justify-center gap-1.5 px-4 py-3 text-white
-                   hover:bg-[#006c49] active:scale-95 transition-all">
+                   justify-center gap-1.5 px-4 py-3 text-white hover:bg-[#006c49]
+                   active:scale-95 transition-all">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="4" width="18" height="16" rx="2"/>
