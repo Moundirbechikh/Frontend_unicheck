@@ -80,12 +80,11 @@ const StudentList = ({ presentStudents, totalCapacity, onClose }) => (
 const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
   const [showMobileList, setShowMobileList] = useState(false);
 
-  // Inverser la liste pour que le dernier scanné apparaisse en haut du flux
   const reversedStudents = [...presentStudents].reverse();
 
   return (
     <>
-      {/* ── DESKTOP : sidebar complète ── */}
+      {/* ── DESKTOP ── */}
       <div className="hidden md:flex w-full h-full flex-col gap-3 overflow-hidden">
         <div className="flex justify-end shrink-0">
           <button
@@ -103,6 +102,7 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Présents en salle</p>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-5xl font-black font-mono leading-none">{presentStudents.length}</span>
+              {/* L'affichage utilise maintenant l'état dynamique issu de la BDD */}
               <span className="text-lg font-bold text-white/50">/ {totalCapacity}</span>
             </div>
           </div>
@@ -149,7 +149,7 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
         </div>
       </div>
 
-      {/* ── MOBILE : bouton vert uniquement ── */}
+      {/* ── MOBILE ── */}
       <button
         onClick={() => setShowMobileList(true)}
         className="md:hidden w-full bg-[#006c49] rounded-[2rem] p-5 shadow-lg text-white relative overflow-hidden active:scale-[0.98] transition-transform"
@@ -166,7 +166,6 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
               </div>
             </div>
           </div>
-          {/* Flèche → indique que c'est cliquable */}
           <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 18l6-6-6-6" />
@@ -175,7 +174,6 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
         </div>
       </button>
 
-      {/* Liste plein écran sur mobile */}
       <AnimatePresence>
         {showMobileList && (
           <StudentList

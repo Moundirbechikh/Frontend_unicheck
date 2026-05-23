@@ -16,10 +16,37 @@ export default function UnicheckSessionDashboard({ seance }) {
   const [isScannerOpen,   setIsScannerOpen]   = useState(false);
   const [isSearchOpen,    setIsSearchOpen]    = useState(false);
   const [presentStudents, setPresentStudents] = useState([]);
+  
+  // 💡 ÉTAT POUR LA CAPACITÉ RÉELLE DE LA BDD
+  const [totalCapacity,   setTotalCapacity]   = useState(0);
 
-  // 💡 NOUVEAU : Récupération de la capacité totale depuis la séance
-  // À adapter selon la structure exacte de ta BDD (ex: seance.groupe.etudiants.length)
-  const capacity = seance?.etudiants?.length || 2; 
+  // ── Fetch de la capacité exacte du groupe depuis la BDD ──────────────────
+  useEffect(() => {
+    if (!seance?.id) return;
+    const token = localStorage.getItem('token');
+
+    const fetchCapacite = async () => {
+      try {
+        // On cible le nouvel endpoint du backend ou la structure de la séance
+        const res = await fetch(`${API}/api/seances/${seance.id}/capacite`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTotalCapacity(data.totalEtudiants); // Assigne la valeur exacte (ex: 2)
+        }
+      } catch (err) {
+        console.error("Erreur lors de la récupération de la capacité du groupe", err);
+      }
+    };
+
+    // Si l'objet seance contient déjà la valeur directement, on l'utilise
+    if (seance?.groupe?.totalEtudiants) {
+      setTotalCapacity(seance.groupe.totalEtudiants);
+    } else {
+      fetchCapacite();
+    }
+  }, [seance?.id]);
 
   // ── Fetch présences toutes les 3 secondes ──────────────────────────────────
   useEffect(() => {
@@ -89,10 +116,10 @@ export default function UnicheckSessionDashboard({ seance }) {
               exit={{ x: 300, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               className="w-[280px] shrink-0 h-full z-20">
-              {/* 💡 CORRECTION ICI : Ajout de la prop totalCapacity */}
+              {/* 💡 TRANSMISSION DE LA VARIABLE totalCapacity DYNAMIQUE */}
               <RightFeed 
                 presentStudents={presentStudents} 
-                totalCapacity={capacity}
+                totalCapacity={totalCapacity} 
                 onClose={() => setShowRight(false)} 
               />
             </motion.div>
@@ -112,10 +139,10 @@ export default function UnicheckSessionDashboard({ seance }) {
           <CenterMonolith isExpanded seanceId={seance?.id} />
         </div>
         <div className="shrink-0 h-[220px]">
-          {/* 💡 CORRECTION ICI AUSSI : Ajout de la prop totalCapacity */}
+          {/* 💡 TRANSMISSION DE LA VARIABLE totalCapacity SUR MOBILE AUSSI */}
           <RightFeed 
             presentStudents={presentStudents} 
-            totalCapacity={capacity}
+            totalCapacity={totalCapacity} 
             onClose={null} 
           />
         </div>
@@ -142,7 +169,6 @@ export default function UnicheckSessionDashboard({ seance }) {
   );
 }
 
-/* ── Barre mobile (inchangée) ─────────────────────────────────────────────────────────── */
 function MobileTopBar({ onOpenSearch, onOpenScanner }) {
   return (
     <div className="flex gap-3 items-stretch">
