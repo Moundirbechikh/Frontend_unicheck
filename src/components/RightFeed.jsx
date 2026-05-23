@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, CheckCircle2, ScanLine, X } from 'lucide-react';
 
-// 💡 AJOUT : On récupère totalCapacity en prop
 const StudentList = ({ presentStudents, totalCapacity, onClose }) => (
   <motion.div
     initial={{ opacity: 0, y: 60 }}
@@ -31,7 +30,6 @@ const StudentList = ({ presentStudents, totalCapacity, onClose }) => (
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Présents en salle</p>
       </div>
       <p className="font-black font-mono text-white text-xl">
-        {/* 💡 AJOUT : Remplacement du 60 en dur par la prop dynamique */}
         {presentStudents.length} <span className="text-white/40 font-bold text-sm">/ {totalCapacity}</span>
       </p>
     </div>
@@ -79,7 +77,6 @@ const StudentList = ({ presentStudents, totalCapacity, onClose }) => (
   </motion.div>
 );
 
-// 💡 AJOUT : totalCapacity à 0 par défaut pour éviter le 60 factice
 const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
   const [showMobileList, setShowMobileList] = useState(false);
 
@@ -106,7 +103,6 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Présents en salle</p>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-5xl font-black font-mono leading-none">{presentStudents.length}</span>
-              {/* 💡 AJOUT : Remplacement du 60 */}
               <span className="text-lg font-bold text-white/50">/ {totalCapacity}</span>
             </div>
           </div>
@@ -166,7 +162,6 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Présents en salle</p>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-4xl font-black font-mono leading-none">{presentStudents.length}</span>
-                {/* 💡 AJOUT : Remplacement du 60 */}
                 <span className="text-base font-bold text-white/50">/ {totalCapacity}</span>
               </div>
             </div>
@@ -185,7 +180,7 @@ const RightFeed = ({ presentStudents = [], totalCapacity = 0, onClose }) => {
         {showMobileList && (
           <StudentList
             presentStudents={reversedStudents}
-            totalCapacity={totalCapacity} // 💡 AJOUT : On passe la prop à la modale
+            totalCapacity={totalCapacity} 
             onClose={() => setShowMobileList(false)}
           />
         )}

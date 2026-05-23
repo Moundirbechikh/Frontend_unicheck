@@ -17,6 +17,10 @@ export default function UnicheckSessionDashboard({ seance }) {
   const [isSearchOpen,    setIsSearchOpen]    = useState(false);
   const [presentStudents, setPresentStudents] = useState([]);
 
+  // 💡 NOUVEAU : Récupération de la capacité totale depuis la séance
+  // À adapter selon la structure exacte de ta BDD (ex: seance.groupe.etudiants.length)
+  const capacity = seance?.etudiants?.length || 2; 
+
   // ── Fetch présences toutes les 3 secondes ──────────────────────────────────
   useEffect(() => {
     if (!seance?.id) return;
@@ -85,7 +89,12 @@ export default function UnicheckSessionDashboard({ seance }) {
               exit={{ x: 300, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               className="w-[280px] shrink-0 h-full z-20">
-              <RightFeed presentStudents={presentStudents} onClose={() => setShowRight(false)} />
+              {/* 💡 CORRECTION ICI : Ajout de la prop totalCapacity */}
+              <RightFeed 
+                presentStudents={presentStudents} 
+                totalCapacity={capacity}
+                onClose={() => setShowRight(false)} 
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -103,7 +112,12 @@ export default function UnicheckSessionDashboard({ seance }) {
           <CenterMonolith isExpanded seanceId={seance?.id} />
         </div>
         <div className="shrink-0 h-[220px]">
-          <RightFeed presentStudents={presentStudents} onClose={null} />
+          {/* 💡 CORRECTION ICI AUSSI : Ajout de la prop totalCapacity */}
+          <RightFeed 
+            presentStudents={presentStudents} 
+            totalCapacity={capacity}
+            onClose={null} 
+          />
         </div>
       </div>
 
@@ -128,7 +142,7 @@ export default function UnicheckSessionDashboard({ seance }) {
   );
 }
 
-/* ── Barre mobile ─────────────────────────────────────────────────────────── */
+/* ── Barre mobile (inchangée) ─────────────────────────────────────────────────────────── */
 function MobileTopBar({ onOpenSearch, onOpenScanner }) {
   return (
     <div className="flex gap-3 items-stretch">
