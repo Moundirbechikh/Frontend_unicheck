@@ -1,40 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, CheckCircle2, ChevronRight, Users, Clock, ScanLine } from 'lucide-react';
+import { X, Search, CheckCircle2, ChevronRight, Users, Clock, ScanLine, Download } from 'lucide-react';
 import StudentDetailModal from './StudentDetailModal';
 
 const AttendanceListModal = ({ session, onClose }) => {
   const [students, setStudents] = useState([]);
+  const [totalCapacity, setTotalCapacity] = useState(0); // 🟢 Remplacement du 60 en dur
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const totalCapacity = 60; // Capacité totale (peut être dynamique selon la séance)
-
-  // Appel au backend (PresenceController)
+  // Appels au backend (Présences + Capacité)
   useEffect(() => {
-    const fetchPresences = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        // 🟢 FIX CRUCIAL : Récupération du token
         const token = localStorage.getItem('token'); 
         
-        const response = await fetch(`https://backend-unicheck.onrender.com/api/presences/seance/${session.id}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`, // Ajout de l'autorisation
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        };
 
-        if (response.ok) {
-          const data = await response.json();
-          // On inverse pour avoir les derniers scannés en haut comme dans ton RightFeed
-          setStudents(data.reverse()); 
+        // 🟢 Utilisation de Promise.all pour faire les 2 requêtes en même temps (gain de vitesse)
+        const [presencesRes, capaciteRes] = await Promise.all([
+          fetch(`https://backend-unicheck.onrender.com/api/presences/seance/${session.id}`, { method: 'GET', headers }),
+          fetch(`https://backend-unicheck.onrender.com/api/seances/${session.id}/capacite`, { method: 'GET', headers })
+        ]);
+
+        // Traitement des présences
+        if (presencesRes.ok) {
+          const presencesData = await presencesRes.json();
+          setStudents(presencesData.reverse()); 
         } else {
-          console.error("Erreur lors de la récupération :", response.status);
+          console.error("Erreur présences :", presencesRes.status);
         }
+
+        // Traitement de la capacité
+        if (capaciteRes.ok) {
+          const capaciteData = await capaciteRes.json();
+          setTotalCapacity(capaciteData.totalEtudiants || 0);
+        } else {
+          console.error("Erreur capacité :", capaciteRes.status);
+        }
+
       } catch (error) {
         console.error("Erreur réseau :", error);
       } finally {
@@ -42,12 +52,35 @@ const AttendanceListModal = ({ session, onClose }) => {
       }
     };
 
-    if (session?.id) fetchPresences();
+    if (session?.id) fetchData();
   }, [session]);
 
   const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // 🟢 Fonction pour exporter en CSV (lisible par Excel)
+  const exportToCSV = () => {
+    if (students.length === 0) return;
+
+    // Ajout du BOM (\uFEFF) pour forcer Excel à lire correctement les accents (utf-8)
+    const csvContent = '\uFEFF' + 
+      ['Nom,Heure de scan'] // En-têtes
+      .concat(students.map(s => `"${s.name}","${s.time}"`)) // Données
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    // Nom du fichier personnalisé : "Presences_Module_Date.csv"
+    link.setAttribute('download', `Presences_${session?.module?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <>
@@ -80,7 +113,7 @@ const AttendanceListModal = ({ session, onClose }) => {
         {/* Contenu principal */}
         <div className="max-w-4xl w-full mx-auto flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-xl shadow-black/5 flex flex-col min-h-0 overflow-hidden">
           
-          {/* Barre de recherche et Compteur (Inspiré de ton RightFeed) */}
+          {/* Barre de recherche, Export et Compteur */}
           <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50 shrink-0">
             <div className="relative w-full md:w-96">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -93,15 +126,27 @@ const AttendanceListModal = ({ session, onClose }) => {
               />
             </div>
             
-            {/* Nouveau compteur stylisé */}
-            <div className="w-full md:w-auto bg-[#006c49] rounded-2xl px-5 py-3 flex items-center justify-between md:justify-center gap-6 shadow-sm">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-white/70" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Total Présents</p>
+            <div className="flex w-full md:w-auto gap-3">
+              {/* 🟢 Nouveau bouton d'export */}
+              <button 
+                onClick={exportToCSV}
+                disabled={students.length === 0}
+                className="flex-1 md:flex-none bg-white border border-gray-200 text-[#1a1c1e] rounded-2xl px-4 py-3 flex items-center justify-center gap-2 hover:bg-gray-50 hover:border-gray-300 transition-all font-bold text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <Download size={18} className="group-hover:-translate-y-0.5 transition-transform" />
+                <span className="hidden sm:inline">Exporter CSV</span>
+              </button>
+
+              {/* Compteur stylisé */}
+              <div className="flex-1 md:flex-none bg-[#006c49] rounded-2xl px-5 py-3 flex items-center justify-between md:justify-center gap-6 shadow-sm">
+                <div className="flex items-center gap-2 hidden sm:flex">
+                  <CheckCircle2 size={16} className="text-white/70" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Total Présents</p>
+                </div>
+                <p className="font-black font-mono text-white text-xl">
+                  {students.length} <span className="text-white/40 font-bold text-sm">/ {totalCapacity}</span>
+                </p>
               </div>
-              <p className="font-black font-mono text-white text-xl">
-                {students.length} <span className="text-white/40 font-bold text-sm">/ {totalCapacity}</span>
-              </p>
             </div>
           </div>
 
