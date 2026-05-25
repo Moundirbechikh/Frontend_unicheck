@@ -89,23 +89,41 @@ const FlowProf = ({ onSuccess }) => {
     }
   };
 
-  const handleSubmit = async () => {
-    setLoading(true); setApiError('');
-    try {
-      const res = await fetch('https://backend-unicheck.onrender.com/api/inscription/professeur', {
+  // Dans FlowEtudiant — remplacer handleSubmit
+
+// Dans FlowProf — remplacer handleSubmit
+const handleSubmit = async () => {
+  setLoading(true);
+  setApiError('');
+
+  console.log("👨‍🏫 [INSCRIPTION PROF] Tentative de création du compte professeur...");
+  console.log("👨‍🏫 [INSCRIPTION PROF] Email :", form.email);
+
+  try {
+    const res = await fetch(
+      'https://backend-unicheck.onrender.com/api/inscription/professeur',
+      {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      onSuccess?.();
-    } catch (e) {
-      setApiError(e.message || "Erreur serveur.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      }
+    );
+
+    console.log("👨‍🏫 [INSCRIPTION PROF] Réponse HTTP status :", res.status);
+    const data = await res.json();
+    console.log("👨‍🏫 [INSCRIPTION PROF] Réponse JSON :", data);
+
+    if (!data.success) throw new Error(data.message);
+
+    console.log("✅ [INSCRIPTION PROF] Compte créé. Email de bienvenue en cours d'envoi.");
+    onSuccess?.();
+  } catch (e) {
+    console.error("❌ [INSCRIPTION PROF] Erreur :", e.message);
+    setApiError(e.message || "Erreur serveur.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (step === 'code') return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-4">
@@ -264,7 +282,14 @@ const FlowEtudiant = ({ onSuccess }) => {
   };
 
   const handleSubmit = async () => {
-    setSaveLoading(true); setApiError('');
+    setSaveLoading(true);
+    setApiError('');
+  
+    console.log("📝 [INSCRIPTION] Tentative de finalisation du compte...");
+    console.log("📝 [INSCRIPTION] Étudiant ID :", selected?.id);
+    console.log("📝 [INSCRIPTION] Email saisi :", form.email);
+    console.log("📝 [INSCRIPTION] Spécialité :", form.specialite, "| Groupe :", form.groupe);
+  
     try {
       const res = await fetch(
         `https://backend-unicheck.onrender.com/api/inscription/etudiant/${selected.id}/finaliser`,
@@ -274,15 +299,26 @@ const FlowEtudiant = ({ onSuccess }) => {
           body: JSON.stringify(form),
         }
       );
+  
+      console.log("📝 [INSCRIPTION] Réponse HTTP status :", res.status);
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Erreur lors de la création.");
+      console.log("📝 [INSCRIPTION] Réponse JSON :", data);
+  
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Erreur lors de la création.");
+      }
+  
+      console.log("✅ [INSCRIPTION] Compte créé avec succès. Un email de bienvenue est envoyé en arrière-plan.");
       onSuccess?.();
+  
     } catch (e) {
+      console.error("❌ [INSCRIPTION] Erreur :", e.message);
       setApiError(e.message);
     } finally {
       setSaveLoading(false);
     }
   };
+  
 
   const groupes   = SPECIALITES[form.specialite] || [];
   const stepLabel = ['Identification', 'Vérification', 'Finalisation'];
