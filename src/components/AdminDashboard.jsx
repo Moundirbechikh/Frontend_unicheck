@@ -209,7 +209,7 @@ const AdminDashboard = () => {
   // Charger insights — seulement au montage (connexion admin)
   useEffect(() => {
     setInsightsLoading(true);
-    fetch('https://backend-unicheck.onrender.com/api/admin/dashboard/insights', {
+    fetch('https://backend-unicheck.onrender.com/dashboard/insights', {
       headers: getAuthHeaders()
     })
       .then(r => r.ok ? r.json() : [])
