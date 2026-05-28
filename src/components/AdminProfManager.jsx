@@ -1,641 +1,684 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, GraduationCap, ArrowRight, Download,
-  Loader2, X, RefreshCw, BookOpen, Clock,
-  FileText, Users, Mail, ChevronRight,
-  BarChart2, CheckCircle2, AlertCircle, Inbox,
-  ArrowUpDown
-} from 'lucide-react';
+  Search,
+  GraduationCap,
+  Download,
+  Loader2,
+  X,
+  RefreshCw,
+  BookOpen,
+  Clock,
+  FileText,
+  Mail,
+  ArrowUpDown,
+  TrendingUp,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+  ChevronRight,
+} from "lucide-react";
 
-const API = 'https://backend-unicheck.onrender.com';
+const API = "https://backend-unicheck.onrender.com";
 
-// ── CSV export ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+// CSV EXPORT
+// ─────────────────────────────────────────────────────────
 const exportToCSV = (profs) => {
-  const headers = ['ID', 'Nom', 'Prénom', 'Email',
-                   'Modules', 'Taux Présence (%)', 'Séances effectuées', 'Heures enseignées', 'Justifs en attente'];
-  const rows = profs.map(p => [
-    p.id, p.nom, p.prenom, p.email,
-    (p.modules || []).join(' / '),
-    p.tauxPresenceGlobal || 0,
-    p.seancesTerminees, p.heuresFormat, p.justifsAttente,
+  const headers = [
+    "ID",
+    "Nom",
+    "Prénom",
+    "Email",
+    "Modules",
+    "Présence",
+    "Séances",
+    "Heures",
+    "Justificatifs",
+  ];
+
+  const rows = profs.map((p) => [
+    p.id,
+    p.nom,
+    p.prenom,
+    p.email,
+    (p.modules || []).join(" / "),
+    `${p.tauxPresenceGlobal || 0}%`,
+    p.seancesTerminees || 0,
+    p.heuresFormat || "0h",
+    p.justifsAttente || 0,
   ]);
+
   const csv = [headers, ...rows]
-    .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `professeurs_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(url);
+    .map((row) =>
+      row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")
+    )
+    .join("\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `professeurs_${new Date()
+    .toISOString()
+    .slice(0, 10)}.csv`;
+
+  a.click();
+
+  URL.revokeObjectURL(url);
 };
 
-// ── Couleur avatar déterministe ───────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+// AVATAR COLORS
+// ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  'bg-[#1a1c1e] text-white',
-  'bg-[#006c49] text-white',
-  'bg-indigo-600 text-white',
-  'bg-violet-600 text-white',
-  'bg-rose-600 text-white',
-  'bg-amber-500 text-white',
+  "from-emerald-500 to-green-600",
+  "from-violet-500 to-purple-600",
+  "from-orange-500 to-amber-500",
+  "from-blue-500 to-cyan-500",
+  "from-rose-500 to-pink-500",
 ];
-const avatarColor = (name = '') =>
+
+const getAvatarColor = (name = "") =>
   AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 
-// ── Stat chip ─────────────────────────────────────────────────────────────────
-const Chip = ({ icon: Icon, value, label, color = 'text-[#1a1c1e]', bg = 'bg-[#f1f4f2]' }) => (
-  <div className={`flex items-center gap-2 px-3 py-2 ${bg} rounded-2xl`}>
-    <Icon size={13} className={color} />
-    <div>
-      <p className={`font-display font-black text-sm leading-none ${color}`}>{value}</p>
-      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{label}</p>
-    </div>
-  </div>
-);
+// ─────────────────────────────────────────────────────────
+// CARD
+// ─────────────────────────────────────────────────────────
+const ProfCard = ({ prof, onClick, index }) => {
+  const initials =
+    (prof.prenom?.[0] || "") + (prof.nom?.[0] || "");
 
-// ════════════════════════════════════════════════════════════════════════════
-// Modal détail prof (AVEC SLIDER FLUIDE)
-// ════════════════════════════════════════════════════════════════════════════
-const ProfModal = ({ prof, onClose }) => {
-  const [detail,        setDetail]        = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(true);
-  const [activeTab,     setActiveTab]     = useState(0); // 0 = Activité, 1 = Assiduité
-  const token = localStorage.getItem('token');
-
-  useEffect(() => {
-    fetch(`${API}/api/professeurs/${prof.id}/detail`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(setDetail)
-      .catch(() => {})
-      .finally(() => setLoadingDetail(false));
-  }, [prof.id]);
-
-  const initials = (prof.prenom?.[0] || '') + (prof.nom?.[0] || '');
-  const color    = avatarColor(prof.name);
-
-  // Graphique séances par mois (SVG minimaliste - Taille réduite)
-  const MiniChart = ({ data }) => {
-    const vals   = Object.values(data);
-    const labels = Object.keys(data);
-    const max    = Math.max(...vals, 1);
-    const W = 320; const H = 50; const BAR_W = Math.floor(W / vals.length) - 4;
-
-    return (
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
-        {vals.map((v, i) => {
-          const barH = (v / max) * (H - 15);
-          const x    = i * (W / vals.length) + 2;
-          const y    = H - barH - 10;
-          return (
-            <g key={i}>
-              <rect x={x} y={y} width={BAR_W} height={barH}
-                fill={v > 0 ? '#006c49' : '#e5e7eb'} rx={4} />
-              {i % 3 === 0 && (
-                <text x={x + BAR_W / 2} y={H + 2} textAnchor="middle"
-                  fontSize={8} fill="#9ca3af" fontFamily="sans-serif">
-                  {labels[i]?.split(' ')[0]}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    );
-  };
+  const hasJustifs = prof.justifsAttente > 0;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose} className="absolute inset-0 bg-[#1a1c1e]/80 backdrop-blur-md" />
-
-      <motion.div
-        initial={{ y: 60, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 60, opacity: 0 }}
-        className="relative z-10 w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
-      >
-        <div className="bg-[#1a1c1e] shrink-0 p-6 md:p-8 relative overflow-hidden">
-          <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/5 rounded-full pointer-events-none" />
-          <div className="absolute -right-2 top-12 w-24 h-24 bg-[#006c49]/30 rounded-full pointer-events-none" />
-
-          <button onClick={onClose}
-            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full
-                       text-white transition-colors z-50 cursor-pointer">
-            <X size={18} />
-          </button>
-
-          <div className="flex items-center gap-4 relative z-10">
-            <div className={`w-16 h-16 ${color} rounded-[1.5rem] flex items-center justify-center
-                             font-display font-black text-2xl shadow-lg`}>
-              {initials}
-            </div>
-            <div className="pr-10">
-              <h2 className="font-display font-black text-2xl text-white tracking-tighter truncate">
-                {prof.prenom} {prof.nom}
-              </h2>
-              <div className="flex items-center gap-2">
-                <p className="text-gray-400 text-xs font-bold mt-0.5 truncate">{prof.email}</p>
-                <a href={`mailto:${prof.email}`} className="text-white/40 hover:text-[#006c49] transition-colors">
-                   <Mail size={12} />
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mt-6 relative z-10">
-            {[
-              { label: 'Séances',   val: prof.seancesTerminees || 0, color: 'text-white' },
-              { label: 'Heures',    val: prof.heuresFormat || '0h',  color: 'text-[#006c49]' },
-              { label: 'En attente',val: prof.justifsAttente || 0,   color: 'text-orange-400' },
-            ].map(({ label, val, color: c }) => (
-              <div key={label} className="bg-white/10 rounded-2xl p-3 text-center">
-                <p className={`font-display font-black text-xl ${c}`}>{val}</p>
-                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8 flex-1 bg-white flex flex-col">
-          {loadingDetail ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={28} className="animate-spin text-[#006c49]" />
-            </div>
-          ) : (
-            <>
-              {/* SLIDER NAVIGATION */}
-              <div className="flex items-center justify-between bg-[#f1f4f2] p-1.5 rounded-2xl mb-5 shrink-0">
-                <button onClick={() => setActiveTab(0)}
-                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all
-                    ${activeTab === 0 ? 'bg-white text-[#1a1c1e] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
-                  Activité globale
-                </button>
-                <button onClick={() => setActiveTab(1)}
-                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all
-                    ${activeTab === 1 ? 'bg-white text-[#1a1c1e] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
-                  Assiduité Modules
-                </button>
-              </div>
-
-              {/* SLIDER CONTENT */}
-              <div className="relative flex-1 overflow-hidden min-h-[220px]">
-                <AnimatePresence mode="wait">
-                  {activeTab === 0 ? (
-                    <motion.div key="tab0"
-                      initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-                      className="space-y-5 h-full overflow-y-auto custom-scrollbar pr-1"
-                    >
-                      <div>
-                        <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-2.5">
-                          Modules enseignés
-                        </p>
-                        {detail?.modules?.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {detail.modules.map(m => (
-                              <span key={m} className="px-3 py-1.5 bg-[#f1f4f2] text-[#1a1c1e] rounded-xl text-xs font-display font-black">
-                                {m}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic">Aucun module associé</p>
-                        )}
-                      </div>
-
-                      {detail?.seancesParMois && Object.values(detail.seancesParMois).some(v => v > 0) && (
-                        <div>
-                          <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-2.5">
-                            Séances / mois (12 derniers mois)
-                          </p>
-                          <div className="bg-[#f1f4f2] rounded-2xl p-3">
-                            <MiniChart data={detail.seancesParMois} />
-                          </div>
-                        </div>
-                      )}
-
-                      <div>
-                        <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-2.5">
-                          Bilan justificatifs
-                        </p>
-                        <div className="grid grid-cols-3 gap-3">
-                          {[
-                            { label: 'Acceptés', val: detail?.justifsAcceptes || 0, bg: 'bg-[#d1f4e0]', color: 'text-[#006c49]' },
-                            { label: 'Refusés',  val: detail?.justifsRefuses || 0,  bg: 'bg-red-50',    color: 'text-red-500'    },
-                            { label: 'Attente',  val: detail?.justifsAttente || 0,  bg: 'bg-orange-50', color: 'text-orange-500' },
-                          ].map(({ label, val, bg, color: c }) => (
-                            <div key={label} className={`${bg} rounded-2xl p-3 text-center`}>
-                              <p className={`font-display font-black text-xl ${c}`}>{val}</p>
-                              <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{label}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </motion.div>
-
-                  ) : (
-                    
-                    <motion.div key="tab1"
-                      initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-                      className="space-y-4 h-full overflow-y-auto custom-scrollbar pr-1"
-                    >
-                      <div className="bg-[#1a1c1e] text-white p-4 rounded-2xl flex justify-between items-center">
-                         <div>
-                           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Taux de présence global</p>
-                           <p className="font-display font-black text-3xl leading-none mt-1">{prof.tauxPresenceGlobal || 0}%</p>
-                         </div>
-                         <div className="w-12 h-12 rounded-full border-4 border-[#006c49] flex items-center justify-center">
-                            <span className="text-xs font-black">Global</span>
-                         </div>
-                      </div>
-                      
-                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 pt-2">Présence par module enseigné</p>
-                      
-                      {prof.modulesStats?.length > 0 ? (
-                        <div className="space-y-2">
-                          {prof.modulesStats.map((ms, idx) => (
-                            <div key={idx} className="bg-[#f1f4f2] p-3 rounded-xl flex items-center justify-between">
-                               <span className="text-sm font-bold text-[#1a1c1e] truncate max-w-[150px]">{ms.libelle}</span>
-                               <div className="flex items-center gap-3 w-1/2 justify-end">
-                                  <div className="w-full h-1.5 bg-white rounded-full overflow-hidden">
-                                     <div className="h-full bg-[#006c49] rounded-full" style={{ width: `${ms.taux}%` }} />
-                                  </div>
-                                  <span className="text-xs font-black text-[#006c49] w-8 text-right">{ms.taux}%</span>
-                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-400 italic">Aucune donnée de module disponible</p>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-// ════════════════════════════════════════════════════════════════════════════
-// Composant principal
-// ════════════════════════════════════════════════════════════════════════════
-const AdminProfManager = () => {
-  const [profs,           setProfs]           = useState([]);
-  const [loading,         setLoading]         = useState(true);
-  const [searchTerm,      setSearchTerm]      = useState('');
-  
-  // Nouveaux Filtres
-  const [filterModule,    setFilterModule]    = useState('Tous');
-  const [filterStatut,    setFilterStatut]    = useState('Tous'); // 'Tous', 'Actif', 'Inactif'
-  const [sortBy,          setSortBy]          = useState('A-Z');  // 'A-Z', 'Présence +', 'Présence -'
-  const [filterJustifs,   setFilterJustifs]   = useState(false);
-
-  const [selectedProf,    setSelectedProf]    = useState(null);
-
-  const token   = localStorage.getItem('token');
-  const headers = { Authorization: `Bearer ${token}` };
-
-  const fetchProfs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/api/professeurs/admin/tous-avec-stats`, { headers });
-      if (res.ok) setProfs(await res.json());
-    } catch { }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { fetchProfs(); }, [fetchProfs]);
-
-  const allModules = ['Tous', ...new Set(
-    profs.flatMap(p => p.modules || []).filter(Boolean)
-  )];
-
-  const withJustifsCount = profs.filter(p => p.justifsAttente > 0).length;
-
-  const filtered = profs.filter(p => {
-    const matchSearch  = p.name?.toLowerCase().includes(searchTerm.toLowerCase())
-                      || p.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchModule  = filterModule === 'Tous'
-                      || (p.modules || []).includes(filterModule);
-    const matchStatut  = filterStatut === 'Tous'
-                      || (filterStatut === 'Actif'   && p.seancesTerminees > 0)
-                      || (filterStatut === 'Inactif' && p.seancesTerminees === 0);
-    const matchJustifs = !filterJustifs || p.justifsAttente > 0;
-    
-    return matchSearch && matchModule && matchStatut && matchJustifs;
-  });
-
-  // Appliquer le tri
-  filtered.sort((a, b) => {
-    if (sortBy === 'Présence +') return (b.tauxPresenceGlobal || 0) - (a.tauxPresenceGlobal || 0);
-    if (sortBy === 'Présence -') return (a.tauxPresenceGlobal || 0) - (b.tauxPresenceGlobal || 0);
-    return (a.name || '').localeCompare(b.name || '');
-  });
-
-  return (
-    <div className="min-h-screen bg-[#f1f4f2] pt-24 pb-32 px-4 md:px-8 font-body relative overflow-hidden">
-
-      <style>{`
-        .font-display { font-family: 'Manrope', sans-serif; }
-        .font-body    { font-family: 'Inter', sans-serif; }
-        
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 5px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-          margin-top: 10px;
-          margin-bottom: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #cbd5e1;
-          border-radius: 20px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: #94a3b8;
-        }
-      `}</style>
-
-      <div className="absolute -top-24 -right-24 text-[#006c49]/5 pointer-events-none -rotate-12 select-none">
-        <GraduationCap size={500} />
+    <motion.div
+      initial={{ opacity: 0, y: 25 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      whileHover={{ y: -6 }}
+      onClick={() => onClick(prof)}
+      className="group relative overflow-hidden rounded-[2.2rem]
+      border border-white/70 bg-white/90 backdrop-blur-xl
+      shadow-[0_10px_40px_rgba(0,0,0,0.04)]
+      hover:shadow-[0_20px_60px_rgba(0,0,0,0.08)]
+      transition-all duration-300 cursor-pointer"
+    >
+      {/* background glow */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+        <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-emerald-100 blur-3xl" />
       </div>
 
-      <div className="max-w-7xl mx-auto space-y-8 relative z-10">
+      <div className="relative z-10 p-6 space-y-5">
+        {/* TOP */}
+        <div className="flex items-start justify-between">
+          <div
+            className={`w-16 h-16 rounded-[1.5rem] bg-gradient-to-br ${getAvatarColor(
+              prof.nom
+            )} flex items-center justify-center text-white
+            font-black text-2xl shadow-lg`}
+          >
+            {initials}
+          </div>
 
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <div className="space-y-1">
-            <h1 className="text-5xl md:text-8xl font-display font-black text-[#1a1c1e] tracking-tighter leading-none">
-              Professeurs<span className="text-[#006c49]">.</span>
-            </h1>
-            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-[0.3em] ml-1">
-              {profs.length} enseignants · {withJustifsCount} avec justificatifs en attente
+          <div className="flex flex-col items-end gap-2">
+            <div className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                {prof.tauxPresenceGlobal || 0}% présence
+              </span>
+            </div>
+
+            {hasJustifs && (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 border border-orange-100">
+                <div className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-orange-600">
+                  {prof.justifsAttente} attente
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* NAME */}
+        <div>
+          <h3 className="text-[1.2rem] font-black tracking-tight text-[#111] uppercase leading-tight">
+            {prof.nom} {prof.prenom}
+          </h3>
+
+          <a
+            href={`mailto:${prof.email}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-2 mt-2 text-gray-400 hover:text-emerald-600 transition-colors"
+          >
+            <Mail size={13} />
+            <span className="text-xs font-semibold truncate">
+              {prof.email}
+            </span>
+          </a>
+        </div>
+
+        {/* MODULES */}
+        {prof.modules?.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {prof.modules.slice(0, 3).map((m) => (
+              <span
+                key={m}
+                className="px-3 py-1.5 rounded-xl bg-[#f4f6f8]
+                text-[10px] uppercase tracking-widest font-black text-gray-600"
+              >
+                {m}
+              </span>
+            ))}
+
+            {prof.modules.length > 3 && (
+              <span
+                className="px-3 py-1.5 rounded-xl bg-[#f4f6f8]
+                text-[10px] uppercase tracking-widest font-black text-gray-400"
+              >
+                +{prof.modules.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* STATS */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-2xl bg-[#f7f8fa] p-3 text-center">
+            <Clock size={14} className="mx-auto text-gray-400 mb-1" />
+            <p className="font-black text-lg text-[#111] leading-none">
+              {prof.heuresFormat || "0h"}
+            </p>
+            <p className="text-[9px] uppercase tracking-widest font-black text-gray-400 mt-1">
+              Heures
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button onClick={fetchProfs}
-              className="w-12 h-12 bg-white text-gray-400 border border-gray-200 rounded-2xl
-                         flex items-center justify-center hover:bg-[#f1f4f2] transition-all"
-              title="Rafraîchir">
-              <RefreshCw size={18} strokeWidth={2.5} />
-            </button>
-            <button onClick={() => exportToCSV(filtered)}
-              className="bg-[#1a1c1e] text-white border border-transparent px-5 py-4 rounded-[2rem]
-                         font-display font-black text-xs uppercase tracking-widest shadow-lg
-                         flex items-center gap-2 hover:bg-[#006c49] transition-all">
-              <Download size={16} strokeWidth={2.5} />
-              <span className="hidden sm:inline">Exporter ({filtered.length})</span>
-            </button>
+          <div className="rounded-2xl bg-[#f7f8fa] p-3 text-center">
+            <BookOpen size={14} className="mx-auto text-gray-400 mb-1" />
+            <p className="font-black text-lg text-[#111] leading-none">
+              {prof.seancesTerminees || 0}
+            </p>
+            <p className="text-[9px] uppercase tracking-widest font-black text-gray-400 mt-1">
+              Séances
+            </p>
           </div>
-        </div>
 
-        {/* NOUVELLE BARRE DE FILTRES STRUCTURÉE */}
-        <div className="bg-white p-4 md:p-6 rounded-[2rem] shadow-sm border border-gray-100 space-y-4">
-          <div className="relative group">
-            <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400
-                                         group-focus-within:text-[#006c49] transition-colors" />
-            <input type="text" placeholder="Rechercher par nom ou email..."
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-[#f1f4f2] border-none rounded-[2rem] py-4 pl-16 pr-6 font-bold
-                         text-[#1a1c1e] focus:ring-2 focus:ring-[#006c49]/20 outline-none"
+          <div
+            className={`rounded-2xl p-3 text-center ${
+              hasJustifs ? "bg-orange-50" : "bg-[#f7f8fa]"
+            }`}
+          >
+            <FileText
+              size={14}
+              className={`mx-auto mb-1 ${
+                hasJustifs ? "text-orange-500" : "text-gray-400"
+              }`}
             />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm('')}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={18}/>
-              </button>
-            )}
+
+            <p
+              className={`font-black text-lg leading-none ${
+                hasJustifs ? "text-orange-600" : "text-[#111]"
+              }`}
+            >
+              {prof.justifsAttente || 0}
+            </p>
+
+            <p className="text-[9px] uppercase tracking-widest font-black text-gray-400 mt-1">
+              Justifs
+            </p>
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2 text-emerald-600">
+            <CheckCircle2 size={15} />
+            <span className="text-[10px] font-black uppercase tracking-widest">
+              Profil actif
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center">
-            {/* Filtres Modules (Scrollable si besoin) */}
-            <div className="flex items-center bg-[#f1f4f2] rounded-2xl p-1 overflow-x-auto max-w-[280px] md:max-w-md custom-scrollbar">
-              {allModules.map(m => (
-                <button key={m}
-                  onClick={() => setFilterModule(m)}
-                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest
-                              transition-all truncate whitespace-nowrap
-                    ${filterModule === m
-                      ? 'bg-white text-[#1a1c1e] shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'}`}>
-                  {m === 'Tous' ? 'Tous modules' : m}
-                </button>
-              ))}
-            </div>
+          <ChevronRight
+            size={18}
+            className="text-gray-300 group-hover:text-emerald-600 transition-colors"
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 
-            {/* Filtre Statut (Actif/Inactif) */}
-            <div className="flex items-center bg-[#f1f4f2] rounded-2xl p-1">
-              {['Tous', 'Actif', 'Inactif'].map(statut => (
-                <button key={statut}
-                  onClick={() => setFilterStatut(statut)}
-                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
-                    ${filterStatut === statut
-                      ? 'bg-white text-[#1a1c1e] shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'}`}>
-                  {statut}
-                </button>
-              ))}
-            </div>
+// ─────────────────────────────────────────────────────────
+// MODAL
+// ─────────────────────────────────────────────────────────
+const ProfModal = ({ prof, onClose }) => {
+  if (!prof) return null;
 
-            {/* Tri (A-Z, Présence +, Présence -) */}
-            <div className="flex items-center bg-[#f1f4f2] rounded-2xl p-1 ml-auto">
-              <span className="pl-3 pr-2 text-gray-400"><ArrowUpDown size={14}/></span>
-              {['A-Z', 'Présence +', 'Présence -'].map(tri => (
-                <button key={tri} onClick={() => setSortBy(tri)}
-                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all 
-                  ${sortBy === tri ? 'bg-white text-[#006c49] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
-                  {tri}
-                </button>
-              ))}
-            </div>
+  const initials =
+    (prof.prenom?.[0] || "") + (prof.nom?.[0] || "");
 
-            {/* Bouton Justifs (Toggle) */}
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div
+          onClick={onClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-md"
+        />
+
+        <motion.div
+          initial={{ y: 40, scale: 0.95 }}
+          animate={{ y: 0, scale: 1 }}
+          exit={{ y: 30, opacity: 0 }}
+          className="relative z-10 w-full max-w-xl rounded-[2.5rem]
+          overflow-hidden bg-white shadow-2xl"
+        >
+          {/* HEADER */}
+          <div className="relative bg-[#111] p-8 overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5" />
+
             <button
-              onClick={() => setFilterJustifs(p => !p)}
-              className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                          flex items-center gap-2 transition-all ml-0 md:ml-2
-                ${filterJustifs
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'bg-orange-50 text-orange-500 hover:bg-orange-100'}`}>
-              <FileText size={12} /> Justifs en attente
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black
-                ${filterJustifs ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-600'}`}>
-                {withJustifsCount}
-              </span>
+              onClick={onClose}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full
+              bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-5 relative z-10">
+              <div
+                className={`w-20 h-20 rounded-[1.8rem] bg-gradient-to-br ${getAvatarColor(
+                  prof.nom
+                )} flex items-center justify-center
+                text-white text-3xl font-black shadow-xl`}
+              >
+                {initials}
+              </div>
+
+              <div>
+                <h2 className="text-3xl font-black tracking-tight text-white">
+                  {prof.prenom} {prof.nom}
+                </h2>
+
+                <p className="text-gray-400 text-sm mt-1">
+                  {prof.email}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* BODY */}
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-2xl bg-[#f7f8fa] p-4 text-center">
+                <Clock className="mx-auto text-gray-400 mb-2" size={18} />
+                <p className="text-2xl font-black">
+                  {prof.heuresFormat || "0h"}
+                </p>
+                <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mt-1">
+                  Heures
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f7f8fa] p-4 text-center">
+                <BookOpen className="mx-auto text-gray-400 mb-2" size={18} />
+                <p className="text-2xl font-black">
+                  {prof.seancesTerminees || 0}
+                </p>
+                <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mt-1">
+                  Séances
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-orange-50 p-4 text-center">
+                <AlertCircle
+                  className="mx-auto text-orange-500 mb-2"
+                  size={18}
+                />
+                <p className="text-2xl font-black text-orange-600">
+                  {prof.justifsAttente || 0}
+                </p>
+                <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mt-1">
+                  Justifs
+                </p>
+              </div>
+            </div>
+
+            {/* modules */}
+            <div>
+              <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">
+                Modules enseignés
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {(prof.modules || []).map((m) => (
+                  <span
+                    key={m}
+                    className="px-4 py-2 rounded-2xl bg-[#f7f8fa]
+                    text-sm font-bold text-[#111]"
+                  >
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* presence */}
+            <div className="rounded-[2rem] bg-gradient-to-r from-emerald-500 to-green-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-widest font-black text-white/70">
+                    Taux de présence
+                  </p>
+
+                  <h3 className="text-5xl font-black mt-2">
+                    {prof.tauxPresenceGlobal || 0}%
+                  </h3>
+                </div>
+
+                <TrendingUp size={50} className="text-white/40" />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+// ─────────────────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────────────────
+const AdminProfManager = () => {
+  const [profs, setProfs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("A-Z");
+
+  const [selectedProf, setSelectedProf] = useState(null);
+
+  const token = localStorage.getItem("token");
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  const fetchProfs = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const res = await fetch(
+        `${API}/api/professeurs/admin/tous-avec-stats`,
+        { headers }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setProfs(data);
+      }
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProfs();
+  }, [fetchProfs]);
+
+  const filtered = useMemo(() => {
+    const arr = profs.filter((p) => {
+      return (
+        p.nom?.toLowerCase().includes(search.toLowerCase()) ||
+        p.prenom?.toLowerCase().includes(search.toLowerCase()) ||
+        p.email?.toLowerCase().includes(search.toLowerCase())
+      );
+    });
+
+    arr.sort((a, b) => {
+      if (sortBy === "Présence +") {
+        return (
+          (b.tauxPresenceGlobal || 0) -
+          (a.tauxPresenceGlobal || 0)
+        );
+      }
+
+      if (sortBy === "Présence -") {
+        return (
+          (a.tauxPresenceGlobal || 0) -
+          (b.tauxPresenceGlobal || 0)
+        );
+      }
+
+      return (a.nom || "").localeCompare(b.nom || "");
+    });
+
+    return arr;
+  }, [profs, search, sortBy]);
+
+  return (
+    <div
+      className="min-h-screen bg-gradient-to-b from-[#f6f8fa] to-[#eef2f5]
+      px-4 md:px-8 pt-24 pb-24 overflow-hidden"
+    >
+      {/* background */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-100 blur-[120px] opacity-40 rounded-full" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* HEADER */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-10">
+          <div>
+            <div className="flex items-center gap-4">
+              <div
+                className="w-16 h-16 rounded-[1.8rem] bg-gradient-to-br
+                from-emerald-500 to-green-600
+                flex items-center justify-center shadow-xl"
+              >
+                <GraduationCap size={30} className="text-white" />
+              </div>
+
+              <div>
+                <h1
+                  className="text-5xl md:text-7xl font-black tracking-tight
+                  text-[#111] leading-none"
+                >
+                  Professeurs
+                  <span className="text-emerald-600">.</span>
+                </h1>
+
+                <p
+                  className="mt-2 text-[11px] uppercase tracking-[0.35em]
+                  font-black text-gray-400"
+                >
+                  Gestion intelligente des enseignants
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* actions */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={fetchProfs}
+              className="w-14 h-14 rounded-2xl bg-white border border-gray-200
+              flex items-center justify-center hover:bg-gray-50 transition-all"
+            >
+              <RefreshCw size={18} />
+            </button>
+
+            <button
+              onClick={() => exportToCSV(filtered)}
+              className="h-14 px-6 rounded-2xl bg-[#111] hover:bg-emerald-600
+              transition-all text-white font-black uppercase tracking-widest
+              text-xs flex items-center gap-3 shadow-xl"
+            >
+              <Download size={16} />
+              Exporter
             </button>
           </div>
         </div>
 
-        {/* ── GRILLE DES RÉSULTATS ─────────────────────────────────────────────────── */}
+        {/* STATS */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            {
+              icon: Users,
+              label: "Professeurs",
+              value: profs.length,
+            },
+            {
+              icon: BookOpen,
+              label: "Séances",
+              value: profs.reduce(
+                (acc, p) => acc + (p.seancesTerminees || 0),
+                0
+              ),
+            },
+            {
+              icon: Clock,
+              label: "Heures",
+              value:
+                profs.reduce(
+                  (acc, p) => acc + (p.heures || 0),
+                  0
+                ) + "h",
+            },
+            {
+              icon: AlertCircle,
+              label: "Justificatifs",
+              value: profs.reduce(
+                (acc, p) => acc + (p.justifsAttente || 0),
+                0
+              ),
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="rounded-[2rem] bg-white/80 backdrop-blur-xl
+              border border-white shadow-sm p-5"
+            >
+              <div className="flex items-center justify-between">
+                <item.icon size={22} className="text-emerald-600" />
+
+                <span className="text-3xl font-black text-[#111]">
+                  {item.value}
+                </span>
+              </div>
+
+              <p
+                className="mt-4 text-[10px] uppercase tracking-widest
+                font-black text-gray-400"
+              >
+                {item.label}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* FILTERS */}
+        <div
+          className="rounded-[2.5rem] bg-white/90 backdrop-blur-xl
+          border border-white shadow-sm p-5 mb-8"
+        >
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* search */}
+            <div className="relative flex-1">
+              <Search
+                size={18}
+                className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+
+              <input
+                type="text"
+                placeholder="Rechercher un professeur..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-14 rounded-2xl bg-[#f6f8fa]
+                pl-14 pr-5 outline-none border border-transparent
+                focus:border-emerald-200 focus:bg-white
+                transition-all font-semibold"
+              />
+            </div>
+
+            {/* sort */}
+            <div className="flex items-center bg-[#f6f8fa] rounded-2xl p-1">
+              <div className="px-3 text-gray-400">
+                <ArrowUpDown size={15} />
+              </div>
+
+              {["A-Z", "Présence +", "Présence -"].map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setSortBy(item)}
+                  className={`px-4 h-12 rounded-xl text-[10px]
+                  uppercase tracking-widest font-black transition-all
+                  ${
+                    sortBy === item
+                      ? "bg-white shadow-sm text-emerald-600"
+                      : "text-gray-400"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* GRID */}
         {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 size={40} className="animate-spin text-[#006c49]" />
+          <div className="flex justify-center py-24">
+            <Loader2
+              size={42}
+              className="animate-spin text-emerald-600"
+            />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-24 bg-white/50 rounded-[3rem] border border-dashed border-gray-200">
-            <Search size={40} className="text-gray-200 mx-auto mb-4" />
-            <p className="font-display font-black text-gray-400 uppercase tracking-widest text-sm">
+          <div
+            className="rounded-[3rem] bg-white/70 border border-dashed
+            border-gray-200 py-24 text-center"
+          >
+            <Search
+              size={45}
+              className="mx-auto text-gray-200 mb-5"
+            />
+
+            <p
+              className="uppercase tracking-widest text-sm
+              font-black text-gray-400"
+            >
               Aucun professeur trouvé
             </p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              <AnimatePresence>
-                {filtered.map((prof, i) => {
-                  const initials = (prof.prenom?.[0] || '') + (prof.nom?.[0] || '');
-                  const color    = avatarColor(prof.name);
-                  const hasJustif = prof.justifsAttente > 0;
-
-                  return (
-                    <motion.div key={prof.id}
-                      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ delay: i * 0.03 }}
-                      onClick={() => setSelectedProf(prof)}
-                      className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-transparent
-                                 hover:border-[#006c49]/20 hover:shadow-xl hover:-translate-y-1
-                                 transition-all group relative overflow-hidden cursor-pointer"
-                    >
-                      <div className="absolute -right-4 -top-4 w-28 h-28 bg-[#f1f4f2] rounded-full
-                                      group-hover:bg-[#d1f4e0]/40 transition-colors pointer-events-none" />
-                      
-                      <div className="relative z-10 space-y-4">
-                        <div className="flex justify-between items-start">
-                          <div className={`w-14 h-14 ${color} rounded-[1.2rem] flex items-center
-                                           justify-center font-display font-black text-xl shadow-md`}>
-                            {initials}
-                          </div>
-                          
-                          {/* AJOUT DU TAUX DE PRÉSENCE SANS CASSER LA TAILLE DE LA CARTE */}
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#f1f4f2] text-[#1a1c1e] shadow-sm">
-                              {prof.tauxPresenceGlobal || 0}% Présence
-                            </span>
-                            {hasJustif && (
-                              <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-100
-                                              px-2.5 py-1 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                                <span className="text-[9px] font-black uppercase tracking-widest text-orange-600">
-                                  {prof.justifsAttente} en attente
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pr-10">
-                          <h3 className="text-lg font-display font-black text-[#1a1c1e] leading-tight
-                                         uppercase tracking-tighter truncate">
-                            {prof.nom} {prof.prenom}
-                          </h3>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <a 
-                                href={`mailto:${prof.email}`} 
-                                onClick={(e) => e.stopPropagation()} 
-                                className="flex items-center gap-1.5 text-gray-400 hover:text-[#006c49] transition-colors"
-                                title="Envoyer un email"
-                            >
-                                <Mail size={11} className="shrink-0" />
-                                <p className="font-bold text-[11px] truncate">{prof.email}</p>
-                                <span className="text-[12px]">📧</span> 
-                            </a>
-                          </div>
-                        </div>
-
-                        {prof.modules?.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pr-10">
-                            {prof.modules.slice(0, 2).map(m => (
-                              <span key={m} className="px-2.5 py-1 bg-[#f1f4f2] text-gray-600 rounded-xl
-                                                       text-[9px] font-black uppercase tracking-widest truncate max-w-[120px]">
-                                {m}
-                              </span>
-                            ))}
-                            {prof.modules.length > 2 && (
-                              <span className="px-2.5 py-1 bg-[#f1f4f2] text-gray-400 rounded-xl
-                                               text-[9px] font-black">
-                                +{prof.modules.length - 2}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-3 gap-2 pr-10">
-                          <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center">
-                            <Clock size={11} className="text-gray-400 mx-auto mb-0.5" />
-                            <p className="font-display font-black text-sm text-[#1a1c1e] leading-none">
-                              {prof.heuresFormat || '0h'}
-                            </p>
-                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Heures</p>
-                          </div>
-                          <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center">
-                            <BookOpen size={11} className="text-gray-400 mx-auto mb-0.5" />
-                            <p className="font-display font-black text-sm text-[#1a1c1e] leading-none">
-                              {prof.seancesTerminees || 0}
-                            </p>
-                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Séances</p>
-                          </div>
-                          <div className={`rounded-2xl p-2.5 text-center
-                            ${hasJustif ? 'bg-orange-50' : 'bg-[#f1f4f2]'}`}>
-                            <FileText size={11} className={`mx-auto mb-0.5 ${hasJustif ? 'text-orange-400' : 'text-gray-400'}`} />
-                            <p className={`font-display font-black text-sm leading-none ${hasJustif ? 'text-orange-500' : 'text-[#1a1c1e]'}`}>
-                              {prof.justifsAttente || 0}
-                            </p>
-                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Justifs</p>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-              {[
-                {
-                  label: 'Total affiché',
-                  val:   filtered.length,
-                  color: 'text-[#1a1c1e]',
-                },
-                {
-                  label: 'Heures totales',
-                  val:   filtered.reduce((acc, p) => acc + (p.heures || 0), 0) + 'h',
-                  color: 'text-[#006c49]',
-                },
-                {
-                  label: 'Séances effectuées',
-                  val:   filtered.reduce((acc, p) => acc + (p.seancesTerminees || 0), 0),
-                  color: 'text-[#1a1c1e]',
-                },
-                {
-                  label: 'Justifs en attente',
-                  val:   filtered.reduce((acc, p) => acc + (p.justifsAttente || 0), 0),
-                  color: 'text-orange-500',
-                },
-              ].map(({ label, val, color }) => (
-                <div key={label} className="bg-white/60 backdrop-blur-sm p-4 rounded-3xl
-                                            border border-white/80 text-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</p>
-                  <p className={`text-3xl font-display font-black mt-1 ${color}`}>{val}</p>
-                </div>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filtered.map((prof, index) => (
+              <ProfCard
+                key={prof.id}
+                prof={prof}
+                index={index}
+                onClick={setSelectedProf}
+              />
+            ))}
+          </div>
         )}
       </div>
 
-      <AnimatePresence>
-        {selectedProf && (
-          <ProfModal
-            prof={selectedProf}
-            onClose={() => setSelectedProf(null)}
-          />
-        )}
-      </AnimatePresence>
+      {/* MODAL */}
+      <ProfModal
+        prof={selectedProf}
+        onClose={() => setSelectedProf(null)}
+      />
     </div>
   );
 };
