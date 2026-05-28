@@ -331,7 +331,7 @@ const AdminProfManager = () => {
 
   const withJustifsCount = profs.filter(p => p.justifsAttente > 0).length;
 
-  // Filtrage (Design d'origine conservé)
+  // Filtrage
   let filtered = profs.filter(p => {
     const matchSearch  = p.nom?.toLowerCase().includes(searchTerm.toLowerCase())
                       || p.prenom?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -345,7 +345,7 @@ const AdminProfManager = () => {
     return matchSearch && matchModule && matchCharge && matchJustifs;
   });
 
-  // Tri (Logique NAdir)
+  // Tri
   filtered.sort((a, b) => {
     let valA, valB;
     if (sortBy === 'nom') {
@@ -418,16 +418,17 @@ const AdminProfManager = () => {
           </div>
         </div>
 
-        {/* BARRE DE FILTRAGE (Design Original + Intégration discrète du Tri NAdir) */}
-        <div className="space-y-3">
-          <div className="relative group flex gap-3">
-            <div className="relative w-full">
-              <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400
-                                           group-focus-within:text-[#006c49] transition-colors" />
+        {/* BARRE DE FILTRAGE */}
+        <div className="space-y-4">
+          
+          <div className="bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3 items-center w-full">
+            
+            <div className="relative w-full md:flex-1">
+              <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
               <input type="text" placeholder="Rechercher par nom ou email..."
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-white border-none rounded-[2rem] py-5 pl-16 pr-6 font-bold
-                           text-[#1a1c1e] shadow-sm focus:ring-4 focus:ring-[#006c49]/10 outline-none"
+                className="w-full bg-[#f1f4f2] border-none rounded-[1.5rem] py-4 pl-16 pr-6 font-bold
+                           text-[#1a1c1e] focus:ring-2 focus:ring-[#006c49]/20 outline-none"
               />
               {searchTerm && (
                 <button onClick={() => setSearchTerm('')}
@@ -437,8 +438,7 @@ const AdminProfManager = () => {
               )}
             </div>
             
-            {/* Ajout du bouton de tri (Discret, adapté au design) */}
-            <div className="hidden md:flex shrink-0 bg-white border border-transparent shadow-sm rounded-[2rem] px-5 py-5 items-center gap-3">
+            <div className="flex w-full md:w-auto shrink-0 bg-[#f1f4f2] border border-transparent shadow-sm rounded-[1.5rem] px-5 py-4 items-center gap-3">
               <ArrowUpDown size={16} className="text-gray-400"/>
               <select value={sortBy} onChange={e => setSortBy(e.target.value)}
                 className="bg-transparent text-[11px] font-black uppercase tracking-widest text-[#1a1c1e] outline-none cursor-pointer">
@@ -455,35 +455,38 @@ const AdminProfManager = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {allModules.map(m => (
-              <button key={m}
-                onClick={() => setFilterModule(m)}
-                className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                            transition-all truncate max-w-[140px]
-                  ${filterModule === m && !filterJustifs
-                    ? 'bg-[#006c49] text-white shadow-lg shadow-[#006c49]/20'
-                    : 'bg-white text-gray-400 hover:bg-gray-50'}`}>
-                {m === 'Tous' ? 'Tous modules' : m}
-              </button>
-            ))}
+            
+            <div className="flex items-center gap-1 bg-white border border-gray-100 p-1.5 rounded-[1.5rem] shadow-sm">
+               {['Tous', 'Actif', 'Inactif'].map(c => (
+                  <button key={c}
+                    onClick={() => setFilterCharge(c)}
+                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                      ${filterCharge === c
+                        ? 'bg-[#1a1c1e] text-white'
+                        : 'bg-transparent text-gray-400 hover:bg-gray-50'}`}>
+                    {c}
+                  </button>
+               ))}
+            </div>
 
-            {['Tous', 'Actif', 'Inactif'].map(c => (
-              filterCharge !== 'Tous' || c !== 'Tous' ? (
-                <button key={c}
-                  onClick={() => setFilterCharge(filterCharge === c ? 'Tous' : c)}
-                  className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
-                    ${filterCharge === c && c !== 'Tous'
-                      ? 'bg-[#1a1c1e] text-white'
-                      : 'bg-white text-gray-400 hover:bg-gray-50'}`}>
-                  {c}
+            <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar hide-scrollbar">
+              {allModules.map(m => (
+                <button key={m}
+                  onClick={() => setFilterModule(m)}
+                  className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                              transition-all truncate max-w-[140px] border
+                    ${filterModule === m
+                      ? 'bg-white text-[#1a1c1e] border-gray-200 shadow-sm'
+                      : 'bg-transparent text-gray-400 border-transparent hover:bg-white/50'}`}>
+                  {m === 'Tous' ? 'Tous modules' : m}
                 </button>
-              ) : null
-            ))}
+              ))}
+            </div>
 
             <button
               onClick={() => setFilterJustifs(p => !p)}
               className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                          flex items-center gap-2 transition-all
+                          flex items-center gap-2 transition-all ml-auto
                 ${filterJustifs
                   ? 'bg-orange-500 text-white shadow-lg'
                   : 'bg-white text-orange-500 border border-orange-200 hover:bg-orange-50'}`}>
@@ -541,15 +544,23 @@ const AdminProfManager = () => {
                                            justify-center font-display font-black text-xl shadow-md`}>
                             {initials}
                           </div>
-                          {hasJustif && (
-                            <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-100
-                                            px-2.5 py-1 rounded-full">
-                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                              <span className="text-[9px] font-black uppercase tracking-widest text-orange-600">
-                                {prof.justifsAttente} en attente
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex flex-col items-end gap-2">
+                             <div className="bg-[#f1f4f2] px-2.5 py-1 rounded-full border border-gray-100 shadow-sm flex items-center gap-1">
+                               <BarChart2 size={10} className="text-[#006c49]" />
+                               <span className="text-[10px] font-black uppercase tracking-widest text-[#1a1c1e]">
+                                 {prof.tauxPresenceGlobal || 0}%
+                               </span>
+                             </div>
+                            {hasJustif && (
+                              <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-100
+                                              px-2.5 py-1 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-orange-600">
+                                  {prof.justifsAttente} en attente
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="pr-10">
@@ -597,7 +608,6 @@ const AdminProfManager = () => {
                             <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Heures</p>
                           </div>
                           <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center relative overflow-hidden group/pres">
-                            {/* Affichage Assiduité en background très discret au hover */}
                             <div className="absolute inset-0 bg-[#006c49]/5 translate-y-full group-hover/pres:translate-y-0 transition-transform"/>
                             <BookOpen size={11} className="text-gray-400 mx-auto mb-0.5 relative z-10" />
                             <p className="font-display font-black text-sm text-[#1a1c1e] leading-none relative z-10">
@@ -621,7 +631,7 @@ const AdminProfManager = () => {
               </AnimatePresence>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
               {[
                 {
                   label: 'Total affiché',
