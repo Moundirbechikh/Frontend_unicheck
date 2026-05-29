@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, GraduationCap, ArrowRight, Download,
@@ -10,7 +10,7 @@ import {
 
 const API = 'https://backend-unicheck.onrender.com';
 
-// ── CSV export (Mis à jour avec logique NAdir) ───────────────────────────────
+// ── CSV export ────────────────────────────────────────────────────────────────
 const exportToCSV = (profs) => {
   const headers = ['ID', 'Nom', 'Prénom', 'Email',
                    'Modules', 'Taux Présence (%)', 'Séances effectuées', 'Heures enseignées', 'Justifs en attente'];
@@ -42,14 +42,24 @@ const AVATAR_COLORS = [
 const avatarColor = (name = '') =>
   AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 
+// ── Stat chip ─────────────────────────────────────────────────────────────────
+const Chip = ({ icon: Icon, value, label, color = 'text-[#1a1c1e]', bg = 'bg-[#f1f4f2]' }) => (
+  <div className={`flex items-center gap-2 px-3 py-2 ${bg} rounded-2xl`}>
+    <Icon size={13} className={color} />
+    <div>
+      <p className={`font-display font-black text-sm leading-none ${color}`}>{value}</p>
+      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{label}</p>
+    </div>
+  </div>
+);
+
 // ════════════════════════════════════════════════════════════════════════════
-// Modal détail prof (Optimisée Espace & Slide Mobile)
+// Modal détail prof (AVEC SLIDER FLUIDE)
 // ════════════════════════════════════════════════════════════════════════════
 const ProfModal = ({ prof, onClose }) => {
   const [detail,        setDetail]        = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
-  const [activeSlide,   setActiveSlide]   = useState(0);
-  const scrollRef = useRef(null);
+  const [activeTab,     setActiveTab]     = useState(0); // 0 = Activité, 1 = Assiduité
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -62,29 +72,10 @@ const ProfModal = ({ prof, onClose }) => {
       .finally(() => setLoadingDetail(false));
   }, [prof.id]);
 
-  const handleScroll = () => {
-    if (scrollRef.current) {
-      const scrollLeft = scrollRef.current.scrollLeft;
-      const width = scrollRef.current.clientWidth;
-      const newIndex = Math.round(scrollLeft / width);
-      if (newIndex !== activeSlide) setActiveSlide(newIndex);
-    }
-  };
-
-  const scrollToSlide = (index) => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        left: index * scrollRef.current.clientWidth,
-        behavior: 'smooth'
-      });
-      setActiveSlide(index);
-    }
-  };
-
   const initials = (prof.prenom?.[0] || '') + (prof.nom?.[0] || '');
-  const color    = avatarColor(prof.name || prof.nom);
+  const color    = avatarColor(prof.name);
 
-  // Graphique séances par mois (Taille ultra-réduite)
+  // Graphique séances par mois (SVG minimaliste - Taille réduite)
   const MiniChart = ({ data }) => {
     const vals   = Object.values(data);
     const labels = Object.keys(data);
@@ -115,179 +106,172 @@ const ProfModal = ({ prof, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
+    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose} className="absolute inset-0 bg-[#1a1c1e]/80 backdrop-blur-md" />
 
       <motion.div
         initial={{ y: 60, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 60, opacity: 0 }}
-        className="relative z-10 w-full md:max-w-lg bg-white rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-2xl flex flex-col h-[85vh] md:max-h-[90vh] overflow-hidden"
+        className="relative z-10 w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
       >
-        {/* Header Profil Noir (Compacté) */}
-        <div className="bg-[#1a1c1e] shrink-0 p-5 md:p-6 relative overflow-hidden">
+        <div className="bg-[#1a1c1e] shrink-0 p-6 md:p-8 relative overflow-hidden">
           <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/5 rounded-full pointer-events-none" />
+          <div className="absolute -right-2 top-12 w-24 h-24 bg-[#006c49]/30 rounded-full pointer-events-none" />
+
           <button onClick={onClose}
-            className="absolute top-5 right-5 p-2 bg-white/10 hover:bg-white/20 rounded-full
+            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full
                        text-white transition-colors z-50 cursor-pointer">
-            <X size={16} />
+            <X size={18} />
           </button>
 
           <div className="flex items-center gap-4 relative z-10">
-            <div className={`w-14 h-14 ${color} rounded-2xl flex items-center justify-center
-                             font-display font-black text-xl shadow-lg shrink-0`}>
+            <div className={`w-16 h-16 ${color} rounded-[1.5rem] flex items-center justify-center
+                             font-display font-black text-2xl shadow-lg`}>
               {initials}
             </div>
-            <div className="pr-8 min-w-0">
-              <h2 className="font-display font-black text-xl text-white tracking-tighter truncate leading-none mb-1.5">
+            <div className="pr-10">
+              <h2 className="font-display font-black text-2xl text-white tracking-tighter truncate">
                 {prof.prenom} {prof.nom}
               </h2>
-              <a href={`mailto:${prof.email}`} className="flex items-center gap-1.5 text-gray-400 hover:text-[#006c49] transition-colors">
-                 <Mail size={11} className="shrink-0"/>
-                 <p className="text-[11px] font-bold truncate">{prof.email}</p>
-              </a>
+              <div className="flex items-center gap-2">
+                <p className="text-gray-400 text-xs font-bold mt-0.5 truncate">{prof.email}</p>
+                <a href={`mailto:${prof.email}`} className="text-white/40 hover:text-[#006c49] transition-colors">
+                   <Mail size={12} />
+                </a>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-4 relative z-10">
+          <div className="grid grid-cols-3 gap-3 mt-6 relative z-10">
             {[
               { label: 'Séances',   val: prof.seancesTerminees || 0, color: 'text-white' },
               { label: 'Heures',    val: prof.heuresFormat || '0h',  color: 'text-[#006c49]' },
               { label: 'En attente',val: prof.justifsAttente || 0,   color: 'text-orange-400' },
             ].map(({ label, val, color: c }) => (
-              <div key={label} className="bg-white/10 rounded-xl p-2.5 text-center">
-                <p className={`font-display font-black text-lg leading-none ${c}`}>{val}</p>
-                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">{label}</p>
+              <div key={label} className="bg-white/10 rounded-2xl p-3 text-center">
+                <p className={`font-display font-black text-xl ${c}`}>{val}</p>
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{label}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Body avec logique Slide & Points (Gain d'espace) */}
-        <div className="flex-1 flex flex-col min-h-0 bg-white relative">
-          
-          {/* Indicateurs (Points de défilement) */}
-          <div className="flex justify-center items-center gap-1.5 py-3 shrink-0 bg-white z-20">
-            {[0, 1].map((index) => (
-              <button
-                key={index}
-                onClick={() => scrollToSlide(index)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  activeSlide === index ? 'w-4 bg-[#006c49]' : 'w-1.5 bg-gray-200'
-                }`}
-              />
-            ))}
-          </div>
-
+        <div className="p-6 md:p-8 flex-1 bg-white flex flex-col">
           {loadingDetail ? (
-            <div className="flex items-center justify-center flex-1">
+            <div className="flex items-center justify-center py-8">
               <Loader2 size={28} className="animate-spin text-[#006c49]" />
             </div>
-          ) : detail ? (
-            <div
-              ref={scrollRef}
-              onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar flex-1 items-start"
-            >
-              {/* SLIDE 1 : ACTIVITÉ GLOBALE */}
-              <div className="w-full shrink-0 snap-center px-5 md:px-6 pb-6 space-y-5 overflow-y-auto custom-scrollbar h-full">
-                <div>
-                  <p className="text-[9px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
-                    Modules enseignés
-                  </p>
-                  {detail.modules?.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {detail.modules.map(m => (
-                        <span key={m} className="px-2.5 py-1 bg-[#f1f4f2] text-[#1a1c1e] rounded-lg
-                                                 text-[10px] font-display font-black">
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-400 italic">Aucun module associé</p>
-                  )}
-                </div>
-
-                {detail.seancesParMois && Object.values(detail.seancesParMois).some(v => v > 0) && (
-                  <div>
-                    <p className="text-[9px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
-                      Activité (12 derniers mois)
-                    </p>
-                    <div className="bg-[#f1f4f2] rounded-2xl p-2.5">
-                      <MiniChart data={detail.seancesParMois} />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-[9px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
-                    Bilan justificatifs
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: 'Acceptés', val: detail.justifsAcceptes || 0, bg: 'bg-[#d1f4e0]', color: 'text-[#006c49]' },
-                      { label: 'Refusés',  val: detail.justifsRefuses || 0,  bg: 'bg-red-50',    color: 'text-red-500'    },
-                      { label: 'En attente',val: detail.justifsAttente || 0, bg: 'bg-orange-50', color: 'text-orange-500' },
-                    ].map(({ label, val, bg, color: c }) => (
-                      <div key={label} className={`${bg} rounded-xl p-2.5 text-center`}>
-                        <p className={`font-display font-black text-lg leading-none ${c}`}>{val}</p>
-                        <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">{label}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* SLIDE 2 : ASSIDUITÉ PAR MODULE */}
-              <div className="w-full shrink-0 snap-center px-5 md:px-6 pb-6 space-y-4 overflow-y-auto custom-scrollbar h-full">
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-[9px] font-black font-display uppercase tracking-widest text-gray-400">
-                    Assiduité par module
-                  </p>
-                  <div className="flex items-center gap-1 bg-[#f1f4f2] px-2 py-1 rounded-md">
-                    <BarChart2 size={10} className="text-[#006c49]"/>
-                    <span className="text-[9px] font-black text-[#1a1c1e]">
-                      Global : {prof.tauxPresenceGlobal || 0}%
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Implémentation générique sécurisée pour la liste d'assiduité basée sur NAdir */}
-                {(detail.assiduiteModules || detail.statsModules || []).length > 0 ? (
-                  (detail.assiduiteModules || detail.statsModules).map((mod, idx) => (
-                    <div key={idx} className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="font-display font-black text-sm text-[#1a1c1e] truncate max-w-[70%]">
-                          {mod.module || mod.nom}
-                        </span>
-                        <span className="font-black text-sm text-[#006c49]">{mod.tauxPresence || mod.taux || 0}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2 mb-2 overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }} 
-                          animate={{ width: `${Math.min(100, mod.tauxPresence || mod.taux || 0)}%` }}
-                          transition={{ duration: 0.8, ease: "easeOut" }}
-                          className="bg-[#006c49] h-full rounded-full" 
-                        />
-                      </div>
-                      <div className="flex justify-between text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                        <span>{mod.seancesRealisees || 0} faites</span>
-                        <span>{mod.seancesTotal || 0} planifiées</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <BookOpen size={24} className="text-gray-300 mb-2"/>
-                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest text-center">Aucune donnée<br/>d'assiduité</p>
-                  </div>
-                )}
-              </div>
-            </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-6">
-              <p className="text-sm text-gray-400 text-center">Données indisponibles</p>
-            </div>
+            <>
+              {/* SLIDER NAVIGATION */}
+              <div className="flex items-center justify-between bg-[#f1f4f2] p-1.5 rounded-2xl mb-5 shrink-0">
+                <button onClick={() => setActiveTab(0)}
+                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all
+                    ${activeTab === 0 ? 'bg-white text-[#1a1c1e] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                  Activité globale
+                </button>
+                <button onClick={() => setActiveTab(1)}
+                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all
+                    ${activeTab === 1 ? 'bg-white text-[#1a1c1e] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                  Assiduité Modules
+                </button>
+              </div>
+
+              {/* SLIDER CONTENT */}
+              <div className="relative flex-1 overflow-hidden min-h-[220px]">
+                <AnimatePresence mode="wait">
+                  {activeTab === 0 ? (
+                    <motion.div key="tab0"
+                      initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
+                      className="space-y-5 h-full overflow-y-auto custom-scrollbar pr-1"
+                    >
+                      <div>
+                        <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-2.5">
+                          Modules enseignés
+                        </p>
+                        {detail?.modules?.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {detail.modules.map(m => (
+                              <span key={m} className="px-3 py-1.5 bg-[#f1f4f2] text-[#1a1c1e] rounded-xl text-xs font-display font-black">
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">Aucun module associé</p>
+                        )}
+                      </div>
+
+                      {detail?.seancesParMois && Object.values(detail.seancesParMois).some(v => v > 0) && (
+                        <div>
+                          <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-2.5">
+                            Séances / mois (12 derniers mois)
+                          </p>
+                          <div className="bg-[#f1f4f2] rounded-2xl p-3">
+                            <MiniChart data={detail.seancesParMois} />
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-2.5">
+                          Bilan justificatifs
+                        </p>
+                        <div className="grid grid-cols-3 gap-3">
+                          {[
+                            { label: 'Acceptés', val: detail?.justifsAcceptes || 0, bg: 'bg-[#d1f4e0]', color: 'text-[#006c49]' },
+                            { label: 'Refusés',  val: detail?.justifsRefuses || 0,  bg: 'bg-red-50',    color: 'text-red-500'    },
+                            { label: 'Attente',  val: detail?.justifsAttente || 0,  bg: 'bg-orange-50', color: 'text-orange-500' },
+                          ].map(({ label, val, bg, color: c }) => (
+                            <div key={label} className={`${bg} rounded-2xl p-3 text-center`}>
+                              <p className={`font-display font-black text-xl ${c}`}>{val}</p>
+                              <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+
+                  ) : (
+                    
+                    <motion.div key="tab1"
+                      initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+                      className="space-y-4 h-full overflow-y-auto custom-scrollbar pr-1"
+                    >
+                      <div className="bg-[#1a1c1e] text-white p-4 rounded-2xl flex justify-between items-center">
+                         <div>
+                           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Taux de présence global</p>
+                           <p className="font-display font-black text-3xl leading-none mt-1">{prof.tauxPresenceGlobal || 0}%</p>
+                         </div>
+                         <div className="w-12 h-12 rounded-full border-4 border-[#006c49] flex items-center justify-center">
+                            <span className="text-xs font-black">Global</span>
+                         </div>
+                      </div>
+                      
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 pt-2">Présence par module enseigné</p>
+                      
+                      {prof.modulesStats?.length > 0 ? (
+                        <div className="space-y-2">
+                          {prof.modulesStats.map((ms, idx) => (
+                            <div key={idx} className="bg-[#f1f4f2] p-3 rounded-xl flex items-center justify-between">
+                               <span className="text-sm font-bold text-[#1a1c1e] truncate max-w-[150px]">{ms.libelle}</span>
+                               <div className="flex items-center gap-3 w-1/2 justify-end">
+                                  <div className="w-full h-1.5 bg-white rounded-full overflow-hidden">
+                                     <div className="h-full bg-[#006c49] rounded-full" style={{ width: `${ms.taux}%` }} />
+                                  </div>
+                                  <span className="text-xs font-black text-[#006c49] w-8 text-right">{ms.taux}%</span>
+                               </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">Aucune donnée de module disponible</p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </>
           )}
         </div>
       </motion.div>
@@ -296,20 +280,20 @@ const ProfModal = ({ prof, onClose }) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// Composant principal (Logique NAdir + Design Original)
+// Composant principal
 // ════════════════════════════════════════════════════════════════════════════
 const AdminProfManager = () => {
   const [profs,           setProfs]           = useState([]);
   const [loading,         setLoading]         = useState(true);
   const [searchTerm,      setSearchTerm]      = useState('');
-  const [filterModule,    setFilterModule]    = useState('Tous');
-  const [filterCharge,    setFilterCharge]    = useState('Tous'); 
-  const [filterJustifs,   setFilterJustifs]   = useState(false);
-  const [selectedProf,    setSelectedProf]    = useState(null);
   
-  // Nouveaux états de tri depuis logique NAdir
-  const [sortBy,          setSortBy]          = useState('nom');
-  const [sortOrder,       setSortOrder]       = useState('asc');
+  // Nouveaux Filtres
+  const [filterModule,    setFilterModule]    = useState('Tous');
+  const [filterStatut,    setFilterStatut]    = useState('Tous'); // 'Tous', 'Actif', 'Inactif'
+  const [sortBy,          setSortBy]          = useState('A-Z');  // 'A-Z', 'Présence +', 'Présence -'
+  const [filterJustifs,   setFilterJustifs]   = useState(false);
+
+  const [selectedProf,    setSelectedProf]    = useState(null);
 
   const token   = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -331,40 +315,24 @@ const AdminProfManager = () => {
 
   const withJustifsCount = profs.filter(p => p.justifsAttente > 0).length;
 
-  // Filtrage
-  let filtered = profs.filter(p => {
-    const matchSearch  = p.nom?.toLowerCase().includes(searchTerm.toLowerCase())
-                      || p.prenom?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = profs.filter(p => {
+    const matchSearch  = p.name?.toLowerCase().includes(searchTerm.toLowerCase())
                       || p.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchModule  = filterModule === 'Tous'
                       || (p.modules || []).includes(filterModule);
-    const matchCharge  = filterCharge === 'Tous'
-                      || (filterCharge === 'Actif'   && p.seancesTerminees > 0)
-                      || (filterCharge === 'Inactif' && p.seancesTerminees === 0);
+    const matchStatut  = filterStatut === 'Tous'
+                      || (filterStatut === 'Actif'   && p.seancesTerminees > 0)
+                      || (filterStatut === 'Inactif' && p.seancesTerminees === 0);
     const matchJustifs = !filterJustifs || p.justifsAttente > 0;
-    return matchSearch && matchModule && matchCharge && matchJustifs;
+    
+    return matchSearch && matchModule && matchStatut && matchJustifs;
   });
 
-  // Tri
+  // Appliquer le tri
   filtered.sort((a, b) => {
-    let valA, valB;
-    if (sortBy === 'nom') {
-      valA = (a.nom || '').toLowerCase();
-      valB = (b.nom || '').toLowerCase();
-    } else if (sortBy === 'presence') {
-      valA = a.tauxPresenceGlobal || 0;
-      valB = b.tauxPresenceGlobal || 0;
-    } else if (sortBy === 'heures') {
-      valA = a.heures || 0;
-      valB = b.heures || 0;
-    } else {
-      valA = a.seancesTerminees || 0;
-      valB = b.seancesTerminees || 0;
-    }
-
-    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
+    if (sortBy === 'Présence +') return (b.tauxPresenceGlobal || 0) - (a.tauxPresenceGlobal || 0);
+    if (sortBy === 'Présence -') return (a.tauxPresenceGlobal || 0) - (b.tauxPresenceGlobal || 0);
+    return (a.name || '').localeCompare(b.name || '');
   });
 
   return (
@@ -374,14 +342,21 @@ const AdminProfManager = () => {
         .font-display { font-family: 'Manrope', sans-serif; }
         .font-body    { font-family: 'Inter', sans-serif; }
         
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; margin: 10px 0; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-        
-        /* Cacher la scrollbar native pour le slider mais garder la fonctionnalité */
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+          margin-top: 10px;
+          margin-bottom: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 20px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: #94a3b8;
+        }
       `}</style>
 
       <div className="absolute -top-24 -right-24 text-[#006c49]/5 pointer-events-none -rotate-12 select-none">
@@ -390,7 +365,6 @@ const AdminProfManager = () => {
 
       <div className="max-w-7xl mx-auto space-y-8 relative z-10">
 
-        {/* HEADER PAGE */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div className="space-y-1">
             <h1 className="text-5xl md:text-8xl font-display font-black text-[#1a1c1e] tracking-tighter leading-none">
@@ -409,87 +383,83 @@ const AdminProfManager = () => {
               <RefreshCw size={18} strokeWidth={2.5} />
             </button>
             <button onClick={() => exportToCSV(filtered)}
-              className="bg-white text-[#1a1c1e] border border-gray-200 px-5 py-4 rounded-[2rem]
-                         font-display font-black text-xs uppercase tracking-widest shadow-sm
-                         flex items-center gap-2 hover:bg-[#f1f4f2] hover:border-[#006c49]/30 transition-all">
+              className="bg-[#1a1c1e] text-white border border-transparent px-5 py-4 rounded-[2rem]
+                         font-display font-black text-xs uppercase tracking-widest shadow-lg
+                         flex items-center gap-2 hover:bg-[#006c49] transition-all">
               <Download size={16} strokeWidth={2.5} />
               <span className="hidden sm:inline">Exporter ({filtered.length})</span>
             </button>
           </div>
         </div>
 
-        {/* BARRE DE FILTRAGE */}
-        <div className="space-y-4">
-          
-          <div className="bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3 items-center w-full">
-            
-            <div className="relative w-full md:flex-1">
-              <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Rechercher par nom ou email..."
-                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-[#f1f4f2] border-none rounded-[1.5rem] py-4 pl-16 pr-6 font-bold
-                           text-[#1a1c1e] focus:ring-2 focus:ring-[#006c49]/20 outline-none"
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')}
-                  className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={18}/>
-                </button>
-              )}
-            </div>
-            
-            <div className="flex w-full md:w-auto shrink-0 bg-[#f1f4f2] border border-transparent shadow-sm rounded-[1.5rem] px-5 py-4 items-center gap-3">
-              <ArrowUpDown size={16} className="text-gray-400"/>
-              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-                className="bg-transparent text-[11px] font-black uppercase tracking-widest text-[#1a1c1e] outline-none cursor-pointer">
-                <option value="nom">Nom</option>
-                <option value="presence">Assiduité</option>
-                <option value="heures">Heures</option>
-                <option value="seances">Séances</option>
-              </select>
-              <button onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')} 
-                      className="text-gray-400 hover:text-[#006c49] font-black text-xs w-4">
-                {sortOrder === 'asc' ? '↑' : '↓'}
+        {/* NOUVELLE BARRE DE FILTRES STRUCTURÉE */}
+        <div className="bg-white p-4 md:p-6 rounded-[2rem] shadow-sm border border-gray-100 space-y-4">
+          <div className="relative group">
+            <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400
+                                         group-focus-within:text-[#006c49] transition-colors" />
+            <input type="text" placeholder="Rechercher par nom ou email..."
+              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-[#f1f4f2] border-none rounded-[2rem] py-4 pl-16 pr-6 font-bold
+                         text-[#1a1c1e] focus:ring-2 focus:ring-[#006c49]/20 outline-none"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={18}/>
               </button>
-            </div>
+            )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            
-            <div className="flex items-center gap-1 bg-white border border-gray-100 p-1.5 rounded-[1.5rem] shadow-sm">
-               {['Tous', 'Actif', 'Inactif'].map(c => (
-                  <button key={c}
-                    onClick={() => setFilterCharge(c)}
-                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
-                      ${filterCharge === c
-                        ? 'bg-[#1a1c1e] text-white'
-                        : 'bg-transparent text-gray-400 hover:bg-gray-50'}`}>
-                    {c}
-                  </button>
-               ))}
-            </div>
-
-            <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar hide-scrollbar">
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* Filtres Modules (Scrollable si besoin) */}
+            <div className="flex items-center bg-[#f1f4f2] rounded-2xl p-1 overflow-x-auto max-w-[280px] md:max-w-md custom-scrollbar">
               {allModules.map(m => (
                 <button key={m}
                   onClick={() => setFilterModule(m)}
-                  className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                              transition-all truncate max-w-[140px] border
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest
+                              transition-all truncate whitespace-nowrap
                     ${filterModule === m
-                      ? 'bg-white text-[#1a1c1e] border-gray-200 shadow-sm'
-                      : 'bg-transparent text-gray-400 border-transparent hover:bg-white/50'}`}>
+                      ? 'bg-white text-[#1a1c1e] shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'}`}>
                   {m === 'Tous' ? 'Tous modules' : m}
                 </button>
               ))}
             </div>
 
+            {/* Filtre Statut (Actif/Inactif) */}
+            <div className="flex items-center bg-[#f1f4f2] rounded-2xl p-1">
+              {['Tous', 'Actif', 'Inactif'].map(statut => (
+                <button key={statut}
+                  onClick={() => setFilterStatut(statut)}
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                    ${filterStatut === statut
+                      ? 'bg-white text-[#1a1c1e] shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'}`}>
+                  {statut}
+                </button>
+              ))}
+            </div>
+
+            {/* Tri (A-Z, Présence +, Présence -) */}
+            <div className="flex items-center bg-[#f1f4f2] rounded-2xl p-1 ml-auto">
+              <span className="pl-3 pr-2 text-gray-400"><ArrowUpDown size={14}/></span>
+              {['A-Z', 'Présence +', 'Présence -'].map(tri => (
+                <button key={tri} onClick={() => setSortBy(tri)}
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all 
+                  ${sortBy === tri ? 'bg-white text-[#006c49] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                  {tri}
+                </button>
+              ))}
+            </div>
+
+            {/* Bouton Justifs (Toggle) */}
             <button
               onClick={() => setFilterJustifs(p => !p)}
-              className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                          flex items-center gap-2 transition-all ml-auto
+              className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                          flex items-center gap-2 transition-all ml-0 md:ml-2
                 ${filterJustifs
-                  ? 'bg-orange-500 text-white shadow-lg'
-                  : 'bg-white text-orange-500 border border-orange-200 hover:bg-orange-50'}`}>
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'bg-orange-50 text-orange-500 hover:bg-orange-100'}`}>
               <FileText size={12} /> Justifs en attente
               <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black
                 ${filterJustifs ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-600'}`}>
@@ -499,7 +469,7 @@ const AdminProfManager = () => {
           </div>
         </div>
 
-        {/* LISTE DES PROFESSEURS */}
+        {/* ── GRILLE DES RÉSULTATS ─────────────────────────────────────────────────── */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 size={40} className="animate-spin text-[#006c49]" />
@@ -517,7 +487,7 @@ const AdminProfManager = () => {
               <AnimatePresence>
                 {filtered.map((prof, i) => {
                   const initials = (prof.prenom?.[0] || '') + (prof.nom?.[0] || '');
-                  const color    = avatarColor(prof.name || prof.nom);
+                  const color    = avatarColor(prof.name);
                   const hasJustif = prof.justifsAttente > 0;
 
                   return (
@@ -528,29 +498,23 @@ const AdminProfManager = () => {
                       onClick={() => setSelectedProf(prof)}
                       className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-transparent
                                  hover:border-[#006c49]/20 hover:shadow-xl hover:-translate-y-1
-                                 transition-all group relative overflow-hidden cursor-pointer flex flex-col justify-between"
+                                 transition-all group relative overflow-hidden cursor-pointer"
                     >
                       <div className="absolute -right-4 -top-4 w-28 h-28 bg-[#f1f4f2] rounded-full
                                       group-hover:bg-[#d1f4e0]/40 transition-colors pointer-events-none" />
-                      <div className="absolute bottom-5 right-5 w-9 h-9 bg-[#f1f4f2] rounded-full
-                                      flex items-center justify-center text-gray-400
-                                      group-hover:bg-[#1a1c1e] group-hover:text-white transition-all z-20">
-                        <ArrowRight size={15} />
-                      </div>
-
+                      
                       <div className="relative z-10 space-y-4">
                         <div className="flex justify-between items-start">
                           <div className={`w-14 h-14 ${color} rounded-[1.2rem] flex items-center
                                            justify-center font-display font-black text-xl shadow-md`}>
                             {initials}
                           </div>
-                          <div className="flex flex-col items-end gap-2">
-                             <div className="bg-[#f1f4f2] px-2.5 py-1 rounded-full border border-gray-100 shadow-sm flex items-center gap-1">
-                               <BarChart2 size={10} className="text-[#006c49]" />
-                               <span className="text-[10px] font-black uppercase tracking-widest text-[#1a1c1e]">
-                                 {prof.tauxPresenceGlobal || 0}%
-                               </span>
-                             </div>
+                          
+                          {/* AJOUT DU TAUX DE PRÉSENCE SANS CASSER LA TAILLE DE LA CARTE */}
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#f1f4f2] text-[#1a1c1e] shadow-sm">
+                              {prof.tauxPresenceGlobal || 0}% Présence
+                            </span>
                             {hasJustif && (
                               <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-100
                                               px-2.5 py-1 rounded-full">
@@ -607,13 +571,12 @@ const AdminProfManager = () => {
                             </p>
                             <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Heures</p>
                           </div>
-                          <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center relative overflow-hidden group/pres">
-                            <div className="absolute inset-0 bg-[#006c49]/5 translate-y-full group-hover/pres:translate-y-0 transition-transform"/>
-                            <BookOpen size={11} className="text-gray-400 mx-auto mb-0.5 relative z-10" />
-                            <p className="font-display font-black text-sm text-[#1a1c1e] leading-none relative z-10">
+                          <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center">
+                            <BookOpen size={11} className="text-gray-400 mx-auto mb-0.5" />
+                            <p className="font-display font-black text-sm text-[#1a1c1e] leading-none">
                               {prof.seancesTerminees || 0}
                             </p>
-                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5 relative z-10">Séances</p>
+                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Séances</p>
                           </div>
                           <div className={`rounded-2xl p-2.5 text-center
                             ${hasJustif ? 'bg-orange-50' : 'bg-[#f1f4f2]'}`}>
