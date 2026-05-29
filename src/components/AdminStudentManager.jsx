@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserPlus, Search, GraduationCap, ArrowRight,
   Download, Loader2, X, CheckCircle2, AlertCircle,
-  Shield, User, Mail, Hash, Smartphone, RefreshCw
+  Shield, User, Mail, Hash, Smartphone, RefreshCw,
+  ArrowUpDown, FileText, BarChart2
 } from 'lucide-react';
 import StudentDetailModal from './StudentDetailModal'; // ✅ Import du composant externe
 
@@ -20,7 +21,7 @@ const exportToCSV = (students) => {
     s.compteActif ? 'Oui' : 'Non', s.deviceId
   ]);
   const csv = [headers, ...rows]
-    .map(r => r.map(c => `"${c}"`).join(','))
+    .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
     .join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
@@ -33,14 +34,18 @@ const exportToCSV = (students) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 const AdminStudentManager = () => {
-  const [students,         setStudents]         = useState([]);
-  const [loading,          setLoading]          = useState(true);
-  const [searchTerm,       setSearchTerm]       = useState('');
-  const [filterSpe,        setFilterSpe]        = useState('Tous');
-  const [filterGrp,        setFilterGrp]        = useState('Tous');
-  const [showExcluded,     setShowExcluded]     = useState(false);
-  const [showSansCompte,   setShowSansCompte]   = useState(false);
+  const [students,       setStudents]       = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [searchTerm,     setSearchTerm]     = useState('');
+  const [filterSpe,      setFilterSpe]      = useState('Tous');
+  const [filterGrp,      setFilterGrp]      = useState('Tous');
+  const [filterStatus,   setFilterStatus]   = useState('Tous'); // 'Tous' | 'Exclus' | 'Non Exclus'
+  const [showSansCompte, setShowSansCompte] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  
+  // États de tri (Identique au ProfManager)
+  const [sortBy,         setSortBy]         = useState('nom'); // 'nom' | 'presence' | 'absences' | 'matricule'
+  const [sortOrder,      setSortOrder]      = useState('asc'); // 'asc' | 'desc'
 
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -69,14 +74,43 @@ const AdminStudentManager = () => {
   const excludedCount    = students.filter(s => s.attendance < EXCLUSION_THRESHOLD).length;
   const sansCompteCount  = students.filter(s => !s.compteActif).length;
 
-  const filtered = students.filter(s => {
-    const matchSearch     = s.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filtrage combiné et cumulable
+  let filtered = students.filter(s => {
+    const fullName = `${s.nom || ''} ${s.prenom || ''}`.toLowerCase();
+    const matchSearch     = fullName.includes(searchTerm.toLowerCase())
                           || s.matricule?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchSpe        = filterSpe === 'Tous' || s.specialite === filterSpe;
     const matchGrp        = filterGrp === 'Tous' || s.groupe === filterGrp;
-    const matchExcluded   = !showExcluded   || s.attendance < EXCLUSION_THRESHOLD;
+    
+    let matchStatus = true;
+    if (filterStatus === 'Exclus') matchStatus = s.attendance < EXCLUSION_THRESHOLD;
+    if (filterStatus === 'Non Exclus') matchStatus = s.attendance >= EXCLUSION_THRESHOLD;
+
     const matchSansCompte = !showSansCompte || !s.compteActif;
-    return matchSearch && matchSpe && matchGrp && matchExcluded && matchSansCompte;
+    
+    return matchSearch && matchSpe && matchGrp && matchStatus && matchSansCompte;
+  });
+
+  // Logique de Tri (Classement par présence, nom, etc.)
+  filtered.sort((a, b) => {
+    let valA, valB;
+    if (sortBy === 'nom') {
+      valA = (a.nom || '').toLowerCase();
+      valB = (b.nom || '').toLowerCase();
+    } else if (sortBy === 'presence') {
+      valA = a.attendance || 0;
+      valB = b.attendance || 0;
+    } else if (sortBy === 'absences') {
+      valA = a.absences || 0;
+      valB = b.absences || 0;
+    } else {
+      valA = (a.matricule || '').toLowerCase();
+      valB = (b.matricule || '').toLowerCase();
+    }
+
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
   });
 
   // ── Logique de Sauvegarde (Transmise au Modal) ───────────────────────────
@@ -90,7 +124,6 @@ const AdminStudentManager = () => {
       const data = await res.json();
       
       if (data.success) {
-        // Mise à jour de la liste locale
         setStudents(prev => prev.map(s => s.id === updatedStudent.id ? { ...s, ...updatedStudent } : s));
         setSelectedStudent(null);
         alert('✓ Étudiant sauvegardé avec succès');
@@ -109,6 +142,12 @@ const AdminStudentManager = () => {
       <style>{`
         .font-display { font-family: 'Manrope', sans-serif; }
         .font-body    { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       <div className="absolute -top-24 -left-24 text-[#006c49]/5 pointer-events-none rotate-12 select-none">
@@ -145,75 +184,106 @@ const AdminStudentManager = () => {
           </div>
         </div>
 
-        {/* ── Filtres ─────────────────────────────────────────────────────── */}
-        <div className="space-y-3">
-          {/* Recherche */}
-          <div className="relative group">
-            <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400
+        {/* ── Filtres Restructurés (Style ProfManager) ─────────────────────── */}
+        <div className="space-y-4">
+          
+          {/* Barre principale : Recherche + Tri */}
+          <div className="bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3 items-center w-full">
+            <div className="relative w-full md:flex-1 group">
+              <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400
                                           group-focus-within:text-[#006c49] transition-colors" />
-            <input type="text" placeholder="Rechercher par nom ou matricule..."
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border-none rounded-[2rem] py-5 pl-16 pr-6 font-bold
-                         text-[#1a1c1e] shadow-sm focus:ring-4 focus:ring-[#006c49]/10 outline-none"
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm('')}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={18} />
+              <input type="text" placeholder="Rechercher par nom ou matricule..."
+                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                className="w-full bg-[#f1f4f2] border-none rounded-[1.5rem] py-4 pl-16 pr-6 font-bold
+                           text-[#1a1c1e] outline-none"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')}
+                  className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {/* Sélecteur de classement & tri */}
+            <div className="flex w-full md:w-auto shrink-0 bg-[#f1f4f2] border border-transparent
+                            shadow-sm rounded-[1.5rem] px-5 py-4 items-center gap-3">
+              <ArrowUpDown size={16} className="text-gray-400"/>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                className="bg-transparent text-[11px] font-black uppercase tracking-widest text-[#1a1c1e] outline-none cursor-pointer">
+                <option value="nom">Nom</option>
+                <option value="presence">Présence (%)</option>
+                <option value="absences">Absences</option>
+                <option value="matricule">Matricule</option>
+              </select>
+              <button onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                      className="text-gray-400 hover:text-[#006c49] font-black text-xs w-4">
+                {sortOrder === 'asc' ? '↑' : '↓'}
               </button>
-            )}
+            </div>
           </div>
 
-          {/* Boutons de filtre */}
-          <div className="flex flex-wrap gap-2">
-            {/* Spécialités */}
-            {specialites.map(spe => (
-              <button key={spe}
-                onClick={() => { setFilterSpe(spe); setFilterGrp('Tous'); setShowExcluded(false); setShowSansCompte(false); }}
-                className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
-                  ${filterSpe === spe && !showExcluded && !showSansCompte
-                    ? 'bg-[#006c49] text-white shadow-lg shadow-[#006c49]/20'
-                    : 'bg-white text-gray-400 hover:bg-gray-50'}`}>
-                {spe}
-              </button>
-            ))}
+          {/* Deuxième ligne : Statuts (Bordure 2px) + Spécialités + Groupes */}
+          <div className="flex flex-wrap gap-3 items-center">
+            
+            {/* Conteneur Statut Présence avec Contour 2px */}
+            <div className="flex items-center gap-1 bg-white border-2 border-gray-200 p-1 rounded-[1.5rem] shadow-sm shrink-0">
+              {[
+                { id: 'Tous',       label: 'Tous' },
+                { id: 'Exclus',     label: 'Exclus' },
+                { id: 'Non Exclus', label: 'Non Exclus' }
+              ].map(status => (
+                <button key={status.id}
+                  onClick={() => setFilterStatus(status.id)}
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                    ${filterStatus === status.id
+                      ? 'bg-[#1a1c1e] text-white'
+                      : 'bg-transparent text-gray-400 hover:bg-gray-50'}`}>
+                  {status.label}
+                </button>
+              ))}
+            </div>
 
-            {/* Groupes */}
-            {filterSpe !== 'Tous' && groupes.filter(g => g !== 'Tous').map(g => (
-              <button key={g}
-                onClick={() => setFilterGrp(filterGrp === g ? 'Tous' : g)}
-                className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
-                  ${filterGrp === g
-                    ? 'bg-[#1a1c1e] text-white'
-                    : 'bg-white text-gray-400 hover:bg-gray-50'}`}>
-                {g}
-              </button>
-            ))}
+            {/* Liste horizontale déroulante des Spécialités */}
+            <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar hide-scrollbar">
+              {specialites.map(spe => (
+                <button key={spe}
+                  onClick={() => { setFilterSpe(spe); setFilterGrp('Tous'); }}
+                  className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                              transition-all truncate max-w-[140px] border
+                    ${filterSpe === spe
+                      ? 'bg-white text-[#1a1c1e] border-gray-200 shadow-sm'
+                      : 'bg-transparent text-gray-400 border-transparent hover:bg-white/50'}`}>
+                  {spe === 'Tous' ? 'Toutes Spés' : spe}
+                </button>
+              ))}
+            </div>
 
-            {/* Exclus */}
+            {/* Liste horizontale des Groupes de la spécialité sélectionnée */}
+            {filterSpe !== 'Tous' && (
+              <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar hide-scrollbar border-l pl-2 border-gray-300">
+                {groupes.map(g => (
+                  <button key={g}
+                    onClick={() => setFilterGrp(g)}
+                    className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border
+                      ${filterGrp === g
+                        ? 'bg-[#006c49] text-white border-[#006c49]'
+                        : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
+                    {g === 'Tous' ? 'Tous Grp' : g}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Toggle Sans Compte aligné à droite */}
             <button
-              onClick={() => { setShowExcluded(e => !e); setShowSansCompte(false); setFilterSpe('Tous'); }}
+              onClick={() => setShowSansCompte(p => !p)}
               className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                          flex items-center gap-2 transition-all
-                ${showExcluded
-                  ? 'bg-orange-500 text-white shadow-lg'
-                  : 'bg-white text-orange-500 border border-orange-200 hover:bg-orange-50'}`}>
-              Exclus
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black
-                ${showExcluded ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-600'}`}>
-                {excludedCount}
-              </span>
-            </button>
-
-            {/* Sans compte */}
-            <button
-              onClick={() => { setShowSansCompte(e => !e); setShowExcluded(false); setFilterSpe('Tous'); }}
-              className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
-                          flex items-center gap-2 transition-all
+                          flex items-center gap-2 transition-all ml-auto shrink-0
                 ${showSansCompte
                   ? 'bg-gray-700 text-white shadow-lg'
                   : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
-              Sans compte
+              <UserPlus size={12} /> Sans compte
               <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black
                 ${showSansCompte ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 {sansCompteCount}
@@ -222,30 +292,28 @@ const AdminStudentManager = () => {
           </div>
         </div>
 
-        {/* ── Bandeau info ────────────────────────────────────────────────── */}
+        {/* ── Bandeau info dynamique ────────────────────────────────────────── */}
         <AnimatePresence>
-          {(showExcluded || showSansCompte) && (
+          {(filterStatus !== 'Tous' || showSansCompte || filterSpe !== 'Tous' || filterGrp !== 'Tous') && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className={`rounded-[1.5rem] px-6 py-4 flex items-center justify-between
-                ${showExcluded
-                  ? 'bg-orange-50 border border-orange-200'
-                  : 'bg-gray-50 border border-gray-200'}`}>
-              <p className={`font-black text-sm ${showExcluded ? 'text-orange-700' : 'text-gray-700'}`}>
-                {showExcluded
-                  ? `${excludedCount} étudiant(s) sous ${EXCLUSION_THRESHOLD}% de présence`
-                  : `${sansCompteCount} étudiant(s) sans compte créé`}
+              className="rounded-[1.5rem] px-6 py-4 flex items-center justify-between bg-white border border-gray-200 shadow-sm">
+              <p className="font-black text-xs text-gray-700">
+                Filtres actifs : {filterStatus !== 'Tous' && <span className="text-orange-600">[{filterStatus}] </span>}
+                {filterSpe !== 'Tous' && <span className="text-[#006c49]">[{filterSpe}] </span>}
+                {filterGrp !== 'Tous' && <span className="text-indigo-600">[{filterGrp}] </span>}
+                {showSansCompte && <span className="text-gray-500">[Sans Compte] </span>}
+                ➜ <span className="text-[#1a1c1e]">{filtered.length} étudiant(s) trouvé(s)</span>
               </p>
-              <button onClick={() => exportToCSV(filtered)}
-                className={`flex items-center gap-2 font-black text-[11px] uppercase tracking-wider transition-colors
-                  ${showExcluded ? 'text-orange-600 hover:text-orange-800' : 'text-gray-600 hover:text-gray-800'}`}>
-                <Download size={14} /> Exporter
+              <button onClick={() => { setFilterSpe('Tous'); setFilterGrp('Tous'); setFilterStatus('Tous'); setShowSansCompte(false); }}
+                className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:underline">
+                Réinitialiser
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Grille ──────────────────────────────────────────────────────── */}
+        {/* ── Grille des Étudiants ─────────────────────────────────────────── */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={40} className="animate-spin text-[#006c49]" />
@@ -290,7 +358,7 @@ const AdminStudentManager = () => {
                               ${isExclu
                                 ? 'bg-red-100 text-red-600'
                                 : 'bg-[#d1f4e0] text-[#006c49]'}`}>
-                              {isExclu ? 'Exclu' : 'Actif'}
+                              {isExclu ? 'Exclu' : 'Regulier'}
                             </span>
                             {!hasCompte && (
                               <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[8px]

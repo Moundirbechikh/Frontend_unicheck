@@ -8,7 +8,7 @@ import {
 
 const API = 'https://backend-unicheck.onrender.com';
 
-// ── CSV export ───────────────────────────────
+// -- CSV export -------------------------------
 const exportToCSV = (profs) => {
   const headers = ['ID', 'Nom', 'Prénom', 'Email',
                    'Modules', 'Taux Présence (%)', 'Séances effectuées', 'Heures enseignées', 'Justifs en attente'];
@@ -28,7 +28,7 @@ const exportToCSV = (profs) => {
   a.click(); URL.revokeObjectURL(url);
 };
 
-// ── Couleur avatar déterministe ───────────────────────────────────────────────
+// -- Couleur avatar déterministe -----------------------------------------------
 const AVATAR_COLORS = [
   'bg-[#1a1c1e] text-white',
   'bg-[#006c49] text-white',
@@ -40,9 +40,9 @@ const AVATAR_COLORS = [
 const avatarColor = (name = '') =>
   AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 // Modal détail prof (Optimisée Espace & Slide Mobile par points)
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 const ProfModal = ({ prof, onClose }) => {
   const [detail,        setDetail]        = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
@@ -87,7 +87,8 @@ const ProfModal = ({ prof, onClose }) => {
     const vals   = Object.values(data);
     const labels = Object.keys(data);
     const max    = Math.max(...vals, 1);
-    const W = 320; const H = 50; const BAR_W = Math.floor(W / vals.length) - 4;
+    const W = 320; const H = 50;
+    const BAR_W = Math.floor(W / vals.length) - 4;
 
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
@@ -192,10 +193,10 @@ const ProfModal = ({ prof, onClose }) => {
                     Modules enseignés
                   </p>
                   {detail.modules?.length > 0 ? (
-                    <div className="flex flex-col gap-1.5 md:flex-row md:flex-wrap md:gap-1.5">
+                    <div className="flex flex-col items-start gap-1.5 md:flex-row md:flex-wrap md:gap-1.5">
                       {detail.modules.map(m => (
                         <span key={m} className="px-2.5 py-1.5 bg-[#f1f4f2] text-[#1a1c1e] rounded-lg
-                                                 text-[10px] font-display font-black w-full md:w-auto">
+                                                 text-[10px] font-display font-black break-words whitespace-normal">
                           {m}
                         </span>
                       ))}
@@ -208,7 +209,7 @@ const ProfModal = ({ prof, onClose }) => {
                 {detail.seancesParMois && Object.values(detail.seancesParMois).some(v => v > 0) && (
                   <div>
                     <p className="text-[9px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
-                      Activité (12 derniers mois)
+                       Activité (12 derniers mois)
                     </p>
                     <div className="bg-[#f1f4f2] rounded-2xl p-2.5">
                       <MiniChart data={detail.seancesParMois} />
@@ -301,9 +302,9 @@ const ProfModal = ({ prof, onClose }) => {
   );
 };
 
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 // Composant principal (Logique NAdir + Design Original)
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 const AdminProfManager = () => {
   const [profs,           setProfs]           = useState([]);
   const [loading,         setLoading]         = useState(true);
@@ -431,7 +432,7 @@ const AdminProfManager = () => {
                            text-[#1a1c1e] focus:ring-2 focus:ring-[#006c49]/20 outline-none"
               />
               {searchTerm && (
-                 <button onClick={() => setSearchTerm('')}
+                <button onClick={() => setSearchTerm('')}
                   className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   <X size={18}/>
                 </button>
@@ -548,7 +549,7 @@ const AdminProfManager = () => {
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <div className="bg-[#f1f4f2] px-2.5 py-1 rounded-full border border-gray-100
-                                             shadow-sm flex items-center gap-1">
+                                            shadow-sm flex items-center gap-1">
                               <BarChart2 size={10} className="text-[#006c49]" />
                               <span className="text-[10px] font-black uppercase tracking-widest text-[#1a1c1e]">
                                 {prof.tauxPresenceGlobal || 0}%
@@ -587,12 +588,12 @@ const AdminProfManager = () => {
 
                         {prof.modules?.length > 0 && (
                           <div className="pr-10">
-                            {/* Mobile : vertical, noms complets */}
-                            <div className="flex flex-col gap-1 md:hidden">
+                            {/* Mobile : vertical, noms complets (SANS TRONCATURE) */}
+                            <div className="flex flex-col items-start gap-1.5 md:hidden">
                               {prof.modules.map(m => (
                                 <span key={m}
                                       className="px-2.5 py-1 bg-[#f1f4f2] text-gray-600 rounded-xl
-                                             text-[9px] font-black uppercase tracking-widest w-full">
+                                             text-[9px] font-black uppercase tracking-widest break-words whitespace-normal text-left">
                                   {m}
                                 </span>
                               ))}
@@ -624,12 +625,13 @@ const AdminProfManager = () => {
                             </p>
                             <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Heures</p>
                           </div>
-                          <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center">
-                            <BookOpen size={11} className="text-gray-400 mx-auto mb-0.5" />
-                            <p className="font-display font-black text-sm text-[#1a1c1e] leading-none">
+                          <div className="bg-[#f1f4f2] rounded-2xl p-2.5 text-center relative overflow-hidden group/pres">
+                            <div className="absolute inset-0 bg-[#006c49]/5 translate-y-full group-hover/pres:translate-y-0 transition-transform"/>
+                            <BookOpen size={11} className="text-gray-400 mx-auto mb-0.5 relative z-10" />
+                            <p className="font-display font-black text-sm text-[#1a1c1e] leading-none relative z-10">
                               {prof.seancesTerminees || 0}
                             </p>
-                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Séances</p>
+                            <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5 relative z-10">Séances</p>
                           </div>
                           <div className={`rounded-2xl p-2.5 text-center ${hasJustif ? 'bg-orange-50' : 'bg-[#f1f4f2]'}`}>
                             <FileText size={11} className={`mx-auto mb-0.5 ${hasJustif ? 'text-orange-400' : 'text-gray-400'}`} />
