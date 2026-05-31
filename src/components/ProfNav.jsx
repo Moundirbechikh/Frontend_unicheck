@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutGrid, Users, FileText, PlayCircle, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Notifications from './Notifications';
-import ProfInfo from './ProfInfo';
+import ProfInfo from './Profinfo';
 
 const ProfNav = () => {
   const navigate = useNavigate();
