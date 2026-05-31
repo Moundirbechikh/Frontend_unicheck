@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutGrid, GraduationCap, FileText, User, QrCode, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Notifications from './Notifications'; 
 import StudentScannerModal from './StudentScannerModal'; 
+import Info from './Info';
 
 const StudentBottomNav = () => {
   const navigate = useNavigate();
@@ -111,7 +112,11 @@ const StudentBottomNav = () => {
                 <QrCode size={18} /> Scanner
               </button>
 
-              <Notifications /> 
+              {/* NOTIFICATIONS */}
+              <Notifications />
+
+              {/* INFO & SUPPORT — desktop + mobile */}
+              <Info />
               
               {/* AVATAR DYNAMIQUE AVEC INITIALES */}
               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#10b981] to-[#006c49] flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider">
