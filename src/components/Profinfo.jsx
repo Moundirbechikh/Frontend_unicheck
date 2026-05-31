@@ -175,7 +175,7 @@ const SECTIONS = [
         'Groupe (ex: G1, G2)',
         'Type de séance (COURS, TD, TP)',
       ],
-      detailInfo: 'En cliquant sur un étudiant, tu accèdes à sa fiche complète : nom, spécialité, groupe, email. Les administrateurs peuvent modifier les informations.',
+      detailInfo: 'En cliquant sur un étudiant, tu accèdes à sa fiche complète : nom, spécialité, groupe, email. Seulement les administrateurs peuvent modifier les informations.',
     },
   },
 ];
