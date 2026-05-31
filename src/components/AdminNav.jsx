@@ -2,20 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutGrid, Users, GraduationCap, CalendarDays, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Notifications from './Notifications'; 
+import AdminInfo from './Admininfo';
 
 const AdminNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
-  
+
   // --- ÉTAT POUR LE NOM DYNAMIQUE ---
   const [initials, setInitials] = useState('??');
 
   useEffect(() => {
     // Récupération du nom depuis le localStorage
     const fullName = localStorage.getItem('userName');
-    
+
     if (fullName) {
       // Fonction pour extraire les initiales (ex: "Bechikh Moundir" -> "BM")
       const nameParts = fullName.trim().split(' ');
@@ -30,13 +30,13 @@ const AdminNav = () => {
   }, []);
 
   const navItems = [
-    { id: 'tableau', label: 'Tableau', icon: LayoutGrid, path: '/admin/tableau' },
-    { id: 'etudiants', label: 'Étudiants', icon: GraduationCap, path: '/admin/etudiants' },
-    { id: 'professeurs', label: 'Profs', icon: Users, path: '/admin/professeurs' },
-    { id: 'planning', label: 'Planning', icon: CalendarDays, path: '/admin/planning' },
+    { id: 'tableau',     label: 'Tableau',    icon: LayoutGrid,    path: '/admin/tableau' },
+    { id: 'etudiants',   label: 'Étudiants',  icon: GraduationCap, path: '/admin/etudiants' },
+    { id: 'professeurs', label: 'Profs',       icon: Users,         path: '/admin/professeurs' },
+    { id: 'planning',    label: 'Planning',    icon: CalendarDays,  path: '/admin/planning' },
   ];
 
-  const activeItem = navItems.find(item => 
+  const activeItem = navItems.find(item =>
     currentPath.includes(item.path) || (currentPath === '/admin' && item.id === 'tableau')
   ) || navItems[0];
 
@@ -50,10 +50,10 @@ const AdminNav = () => {
       <header className="fixed top-0 left-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 shadow-[0_4px_30px_rgba(0,0,0,0.02)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            
+
             {/* LOGO */}
-            <div 
-              className="flex items-center gap-3 cursor-pointer group" 
+            <div
+              className="flex items-center gap-3 cursor-pointer group"
               onClick={() => navigate('/admin/tableau')}
             >
               <div className="w-9 h-9 bg-[#006c49] rounded-xl flex items-center justify-center transition-transform group-hover:rotate-12 shadow-md">
@@ -93,23 +93,27 @@ const AdminNav = () => {
 
             {/* ACTIONS DROITE */}
             <div className="flex items-center gap-2 sm:gap-4">
-              <Notifications />
-              
+
+              {/* ── AdminInfo seul dans son conteneur (pas de notif pour l'admin) ── */}
+              <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100 p-0.5">
+                <AdminInfo />
+              </div>
+
               {/* CERCLE DES INITIALES DYNAMIQUE */}
               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-md tracking-wider">
                 {initials}
               </div>
 
               {/* BOUTON DÉCONNEXION */}
-              <button 
-                onClick={handleLogout} 
-                title="Se déconnecter" 
+              <button
+                onClick={handleLogout}
+                title="Se déconnecter"
                 className="group relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-300 shadow-sm"
               >
-                <LogOut 
-                  size={18} 
-                  strokeWidth={2.5} 
-                  className="group-hover:-translate-x-0.5 transition-transform z-10" 
+                <LogOut
+                  size={18}
+                  strokeWidth={2.5}
+                  className="group-hover:-translate-x-0.5 transition-transform z-10"
                 />
               </button>
             </div>
@@ -120,17 +124,17 @@ const AdminNav = () => {
       {/* NAVIGATION MOBILE */}
       <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 px-4 pt-2 pb-5 z-50 rounded-t-[2rem] shadow-[0_-15px_40px_rgba(0,0,0,0.04)] lg:hidden">
         <div className="max-w-md mx-auto mb-1 flex justify-center">
-             <AnimatePresence mode="wait">
-                <motion.div
-                    key={activeItem.id}
-                    initial={{ opacity: 0, y: 3 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -3 }}
-                    className="bg-[#d1f4e0] text-[#006c49] px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-[#006c49]/10"
-                >
-                    {activeItem.label}
-                </motion.div>
-             </AnimatePresence>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeItem.id}
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -3 }}
+              className="bg-[#d1f4e0] text-[#006c49] px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-[#006c49]/10"
+            >
+              {activeItem.label}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="flex justify-between items-center max-w-md mx-auto relative px-2">
@@ -150,17 +154,17 @@ const AdminNav = () => {
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                   />
                 )}
-                <Icon 
-                  size={22} 
-                  strokeWidth={isActive ? 2.5 : 2} 
+                <Icon
+                  size={22}
+                  strokeWidth={isActive ? 2.5 : 2}
                   className={`transition-all duration-300 ${
                     isActive ? 'text-[#006c49] scale-110 -translate-y-0.5' : 'text-gray-400 group-hover:text-gray-600'
-                  }`} 
+                  }`}
                 />
                 {isActive && (
-                  <motion.div 
-                    layoutId="admin-active-dot" 
-                    className="w-1 h-1 bg-[#006c49] rounded-full mt-0.5" 
+                  <motion.div
+                    layoutId="admin-active-dot"
+                    className="w-1 h-1 bg-[#006c49] rounded-full mt-0.5"
                   />
                 )}
               </button>
