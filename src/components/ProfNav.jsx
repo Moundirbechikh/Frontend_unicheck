@@ -107,7 +107,7 @@ const ProfNav = () => {
               </div>
               
               {/* BADGE INITIALES DYNAMIQUE */}
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#10b981] to-[#006c49] flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-black flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider">
                 {initials}
               </div>
 
