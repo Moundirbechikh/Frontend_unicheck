@@ -5,23 +5,25 @@ import {
   X, QrCode, Camera, Keyboard, MapPin, CheckCircle2, XCircle,
   Clock, Shield, FileText, AlertCircle, Loader2, Send, ChevronDown,
   ChevronRight, BookOpen, CalendarDays, UploadCloud, KeyRound,
-  GraduationCap, ArrowRight, HelpCircle, Sparkles, BarChart2,
-  User, BellOff
+  GraduationCap, BarChart2, User, HelpCircle, Sparkles,
+  ScanLine, ListChecks, FileBadge, Lock, Activity,
+  ArrowRight, TriangleAlert, CircleCheck, CircleX, Eye
 } from 'lucide-react';
 
 // ── Sections data ─────────────────────────────────────────────────────────────
 const SECTIONS = [
   {
     id: 'presence',
-    emoji: '📡',
+    Icon: ScanLine,
     title: 'Faire sa présence',
     subtitle: 'Scanner le QR Code de la séance',
     color: '#006c49',
     lightColor: '#d1f4e0',
+    textColor: '#006c49',
     steps: [
-      { icon: MapPin,   text: 'Activer le GPS' },
-      { icon: Camera,   text: 'Autoriser la caméra' },
-      { icon: QrCode,   text: 'Scanner ou saisir le code' },
+      { icon: MapPin,       text: 'Activer le GPS' },
+      { icon: Camera,       text: 'Autoriser la caméra' },
+      { icon: QrCode,       text: 'Scanner ou saisir le code' },
       { icon: CheckCircle2, text: 'Confirmation reçue' },
     ],
     detail: {
@@ -31,7 +33,7 @@ const SECTIONS = [
           label: 'Scan caméra',
           desc: 'Pointe ta caméra sur le QR Code affiché par le professeur. La détection est automatique.',
           steps: [
-            'Appuyer sur le bouton Scan (bas de l\'écran)',
+            "Appuyer sur le bouton Scan (bas de l'écran)",
             'Activer le GPS si demandé',
             'Pointer la caméra sur le QR Code',
             'Attendre la confirmation automatique',
@@ -40,7 +42,7 @@ const SECTIONS = [
         {
           icon: Keyboard,
           label: 'Code manuel',
-          desc: 'Si la caméra ne fonctionne pas, tu peux entrer le code à 6 caractères affiché par le prof (format : ABC-1X2).',
+          desc: "Si la caméra ne fonctionne pas, tu peux entrer le code à 6 caractères affiché par le prof (format : ABC-1X2).",
           steps: [
             'Onglet "Code Manuel" dans le scanner',
             'Entrer le code à 6 caractères',
@@ -49,32 +51,33 @@ const SECTIONS = [
           ]
         }
       ],
-      gps: 'Le GPS est requis pour vérifier que tu es bien dans la salle de cours. Sans GPS, la présence peut être refusée.',
+      gps: "Le GPS est requis pour vérifier que tu es bien dans la salle de cours. Sans GPS, la présence peut être refusée.",
       feedback: true,
     }
   },
   {
     id: 'agenda',
-    emoji: '📅',
+    Icon: CalendarDays,
     title: 'Consulter mes présences',
     subtitle: 'Agenda & suivi par module',
     color: '#1a1c1e',
     lightColor: '#f1f4f2',
+    textColor: '#1a1c1e',
     steps: [
-      { icon: CalendarDays, text: 'Ouvrir l\'agenda' },
+      { icon: CalendarDays, text: "Ouvrir l'agenda" },
       { icon: BookOpen,     text: 'Choisir une date' },
       { icon: BarChart2,    text: 'Voir le détail par cours' },
       { icon: FileText,     text: 'Consulter par module' },
     ],
     detail: {
       legend: [
-        { emoji: '🟢', label: 'Présent',     cls: 'bg-[#d1f4e0] text-[#006c49]' },
-        { emoji: '🔴', label: 'Absent',      cls: 'bg-red-50 text-red-500' },
-        { emoji: '🟠', label: 'Justifier',   cls: 'bg-orange-50 text-orange-500' },
-        { emoji: '🕐', label: 'En attente',  cls: 'bg-orange-100 text-orange-600' },
-        { emoji: '✅', label: 'Justifié ✓',  cls: 'bg-[#d1f4e0] text-[#006c49]' },
-        { emoji: '❌', label: 'Refusé',      cls: 'bg-red-50 text-red-600' },
-        { emoji: '🔵', label: 'À venir',     cls: 'bg-blue-50 text-blue-500' },
+        { Icon: CheckCircle2, label: 'Présent',    cls: 'bg-[#d1f4e0] text-[#006c49]' },
+        { Icon: XCircle,      label: 'Absent',     cls: 'bg-red-50 text-red-500' },
+        { Icon: FileText,     label: 'Justifier',  cls: 'bg-orange-50 text-orange-500' },
+        { Icon: Clock,        label: 'En attente', cls: 'bg-orange-100 text-orange-600' },
+        { Icon: Shield,       label: 'Justifié',   cls: 'bg-[#d1f4e0] text-[#006c49]' },
+        { Icon: AlertCircle,  label: 'Refusé',     cls: 'bg-red-50 text-red-600' },
+        { Icon: Clock,        label: 'À venir',    cls: 'bg-blue-50 text-blue-500' },
       ],
       exampleCourse: {
         heureDebut: '12:04',
@@ -84,16 +87,17 @@ const SECTIONS = [
         prof:       'Prof. Djihane Bourenan',
         statut:     'present',
       },
-      moduleInfo: 'La section "Cours" affiche tes modules avec le nombre de présences et le pourcentage de taux d\'assiduité. Un taux en dessous de 75% peut entraîner une exclusion du module.',
+      moduleInfo: "La section « Cours » affiche tes modules avec le nombre de présences et le taux d'assiduité. Un taux en dessous de 75 % peut entraîner une exclusion du module.",
     }
   },
   {
     id: 'justificatif',
-    emoji: '📎',
+    Icon: FileBadge,
     title: 'Justifier une absence',
     subtitle: 'Déposer un document justificatif',
     color: '#b45309',
     lightColor: '#fff7ed',
+    textColor: '#b45309',
     steps: [
       { icon: CalendarDays, text: 'Choisir la séance' },
       { icon: UploadCloud,  text: 'Joindre un document' },
@@ -105,12 +109,12 @@ const SECTIONS = [
         {
           icon: FileText,
           label: 'Via la section Docs',
-          desc: 'Va dans l\'onglet "Docs" du menu principal. Sélectionne la séance manquée dans la liste, choisis le type de motif, ajoute un document et envoie.',
+          desc: "Va dans l'onglet « Docs » du menu principal. Sélectionne la séance manquée, choisis le type de motif, ajoute un document et envoie.",
         },
         {
           icon: CalendarDays,
-          label: 'Via l\'Agenda',
-          desc: 'Sur une séance marquée "Absent", appuie sur l\'icône 📄. Tu seras redirigé vers le formulaire avec la séance déjà pré-sélectionnée.',
+          label: "Via l'Agenda",
+          desc: "Sur une séance marquée « Absent », appuie sur l'icône document. Tu seras redirigé vers le formulaire avec la séance déjà pré-sélectionnée.",
         }
       ],
       formats: 'Formats acceptés : PDF, JPG, PNG — max 10 MB',
@@ -119,15 +123,16 @@ const SECTIONS = [
   },
   {
     id: 'password',
-    emoji: '🔐',
+    Icon: Lock,
     title: 'Changer mon mot de passe',
     subtitle: 'Sécuriser ton compte',
     color: '#4f46e5',
     lightColor: '#eef2ff',
+    textColor: '#4f46e5',
     steps: [
-      { icon: User,      text: 'Aller dans Profil' },
-      { icon: KeyRound,  text: '"Modifier mon accès"' },
-      { icon: KeyRound,  text: 'Saisir le nouveau MDP' },
+      { icon: User,         text: 'Aller dans Profil' },
+      { icon: KeyRound,     text: '"Modifier mon accès"' },
+      { icon: KeyRound,     text: 'Saisir le nouveau MDP' },
       { icon: CheckCircle2, text: 'Confirmer' },
     ],
     detail: {
@@ -140,9 +145,9 @@ const SECTIONS = [
   },
 ];
 
-// ── Mini composants réutilisables ─────────────────────────────────────────────
+// ── Mini composants ───────────────────────────────────────────────────────────
 
-const StepBubble = ({ icon: Icon, text, index, color }) => (
+const StepBubble = ({ icon: Icon, text, color }) => (
   <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
     <div
       className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-sm"
@@ -150,32 +155,37 @@ const StepBubble = ({ icon: Icon, text, index, color }) => (
     >
       <Icon size={20} strokeWidth={2.5} />
     </div>
-    <p className="text-[10px] font-black font-display text-center text-gray-500 uppercase tracking-wide leading-tight px-0.5">
+    <p className="text-[10px] font-black text-center text-gray-500 uppercase tracking-wide leading-tight px-0.5"
+      style={{ fontFamily: "'Manrope', sans-serif" }}>
       {text}
     </p>
   </div>
 );
 
+// Demo succès/erreur identique au StudentScannerModal
 const ScanFeedbackDemo = () => {
-  const [demo, setDemo] = useState(null); // null | 'success' | 'error'
+  const [demo, setDemo] = useState(null);
 
   return (
-    <div className="space-y-3 mt-4">
-      <p className="text-[11px] font-black font-display uppercase tracking-widest text-gray-400">
-        Aperçu des retours
+    <div className="space-y-3 mt-2">
+      <p className="text-[11px] font-black uppercase tracking-widest text-gray-400"
+        style={{ fontFamily: "'Manrope', sans-serif" }}>
+        Aperçu des retours scanner
       </p>
       <div className="flex gap-2">
         <button
           onClick={() => setDemo(d => d === 'success' ? null : 'success')}
-          className="flex-1 py-2.5 rounded-2xl bg-[#d1f4e0] text-[#006c49] text-xs font-black font-display uppercase tracking-wider hover:bg-[#006c49] hover:text-white transition-all"
+          className="flex-1 py-2.5 rounded-2xl bg-[#d1f4e0] text-[#006c49] text-xs font-black uppercase tracking-wider hover:bg-[#006c49] hover:text-white transition-all flex items-center justify-center gap-1.5"
+          style={{ fontFamily: "'Manrope', sans-serif" }}
         >
-          ✓ Succès
+          <CircleCheck size={13} /> Succès
         </button>
         <button
           onClick={() => setDemo(d => d === 'error' ? null : 'error')}
-          className="flex-1 py-2.5 rounded-2xl bg-red-50 text-red-500 text-xs font-black font-display uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all"
+          className="flex-1 py-2.5 rounded-2xl bg-red-50 text-red-500 text-xs font-black uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-1.5"
+          style={{ fontFamily: "'Manrope', sans-serif" }}
         >
-          ✗ Erreur
+          <CircleX size={13} /> Erreur
         </button>
       </div>
 
@@ -199,8 +209,12 @@ const ScanFeedbackDemo = () => {
               />
             </div>
             <div className="text-center">
-              <p className="text-white font-black font-display text-lg tracking-tighter">Présence validée !</p>
-              <p className="text-[#006c49] font-black text-3xl font-display mt-1">08:30</p>
+              <p className="text-white font-black text-lg tracking-tighter" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                Présence validée !
+              </p>
+              <p className="text-[#006c49] font-black text-3xl mt-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                08:30
+              </p>
             </div>
             <div className="w-full bg-[#006c49]/15 border border-[#006c49]/25 rounded-2xl px-4 py-3 text-center">
               <p className="text-green-300 text-xs font-bold">Présence enregistrée avec succès.</p>
@@ -219,7 +233,9 @@ const ScanFeedbackDemo = () => {
               <XCircle size={28} className="text-red-400" />
             </div>
             <div className="text-center">
-              <p className="text-white font-black font-display text-lg tracking-tighter">Présence refusée</p>
+              <p className="text-white font-black text-lg tracking-tighter" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                Présence refusée
+              </p>
             </div>
             <div className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-center">
               <p className="text-red-300 text-xs font-bold leading-relaxed">
@@ -234,40 +250,52 @@ const ScanFeedbackDemo = () => {
 };
 
 const AgendaLegend = ({ legend }) => (
-  <div className="flex flex-wrap gap-2 mt-3">
-    {legend.map(item => (
-      <div key={item.label} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black font-display uppercase tracking-wide ${item.cls}`}>
-        <span>{item.emoji}</span>
-        {item.label}
-      </div>
-    ))}
+  <div className="flex flex-wrap gap-2 mt-2">
+    {legend.map(item => {
+      const { Icon } = item;
+      return (
+        <div
+          key={item.label}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide ${item.cls}`}
+          style={{ fontFamily: "'Manrope', sans-serif" }}
+        >
+          <Icon size={11} strokeWidth={2.5} />
+          {item.label}
+        </div>
+      );
+    })}
   </div>
 );
 
 const ExampleCourse = ({ course }) => {
   const statCfg = {
-    present:       { cls: 'bg-[#d1f4e0]', iconColor: 'text-[#006c49]', Icon: CheckCircle2, heureColor: 'text-[#006c49]' },
-    absent:        { cls: 'bg-red-50',     iconColor: 'text-red-500',   Icon: XCircle,      heureColor: 'text-red-400' },
-    justif_attente:{ cls: 'bg-orange-50',  iconColor: 'text-orange-500',Icon: Clock,        heureColor: 'text-orange-500' },
+    present: { cls: 'bg-[#d1f4e0]', iconColor: 'text-[#006c49]', Icon: CheckCircle2, heureColor: 'text-[#006c49]' },
+    absent:  { cls: 'bg-red-50',    iconColor: 'text-red-500',   Icon: XCircle,      heureColor: 'text-red-400' },
   };
   const cfg = statCfg[course.statut] || statCfg.present;
   const { Icon } = cfg;
 
   return (
-    <div className="mt-4">
-      <p className="text-[11px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
+    <div className="mt-3">
+      <p className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2"
+        style={{ fontFamily: "'Manrope', sans-serif" }}>
         Exemple de séance
       </p>
       <div className="bg-white border border-gray-100 rounded-[1.5rem] p-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-center justify-center bg-[#f1f4f2] rounded-2xl w-[54px] h-14 border border-gray-50 shrink-0">
-            <span className={`text-[13px] font-display font-black ${cfg.heureColor}`}>{course.heureDebut}</span>
+            <span className={`text-[13px] font-black ${cfg.heureColor}`} style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {course.heureDebut}
+            </span>
             <span className="text-[9px] font-bold text-gray-400 uppercase">{course.heureFin}</span>
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-display font-black text-[#1a1c1e] text-sm tracking-tighter">{course.module}</p>
-              <span className="text-[9px] font-black font-display uppercase tracking-widest bg-[#f1f4f2] text-gray-500 px-2 py-0.5 rounded-lg">
+              <p className="font-black text-[#1a1c1e] text-sm tracking-tighter" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                {course.module}
+              </p>
+              <span className="text-[9px] font-black uppercase tracking-widest bg-[#f1f4f2] text-gray-500 px-2 py-0.5 rounded-lg"
+                style={{ fontFamily: "'Manrope', sans-serif" }}>
                 {course.type}
               </span>
             </div>
@@ -288,24 +316,24 @@ const ExampleCourse = ({ course }) => {
 // ── Section card ──────────────────────────────────────────────────────────────
 const SectionCard = ({ section }) => {
   const [expanded, setExpanded] = useState(false);
+  const { Icon: SectionIcon } = section;
 
   return (
-    <motion.div
-      layout
-      className="bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm"
-    >
-      {/* Header always visible */}
+    <motion.div layout className="bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm">
+
+      {/* Header */}
       <div className="p-5">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm"
               style={{ background: section.lightColor }}
             >
-              {section.emoji}
+              <SectionIcon size={22} strokeWidth={2.5} style={{ color: section.color }} />
             </div>
             <div>
-              <h3 className="font-display font-black text-[#1a1c1e] text-base tracking-tighter leading-tight">
+              <h3 className="font-black text-[#1a1c1e] text-base tracking-tighter leading-tight"
+                style={{ fontFamily: "'Manrope', sans-serif" }}>
                 {section.title}
               </h3>
               <p className="text-[11px] text-gray-400 font-bold mt-0.5">{section.subtitle}</p>
@@ -321,11 +349,11 @@ const SectionCard = ({ section }) => {
           </button>
         </div>
 
-        {/* Steps always visible */}
+        {/* Steps */}
         <div className="flex items-start gap-2 mt-5 relative">
           {section.steps.map((step, i) => (
             <React.Fragment key={i}>
-              <StepBubble icon={step.icon} text={step.text} index={i} color={section.color} />
+              <StepBubble icon={step.icon} text={step.text} color={section.color} />
               {i < section.steps.length - 1 && (
                 <div className="w-4 shrink-0 flex items-center justify-center mt-3.5">
                   <ChevronRight size={12} className="text-gray-300" strokeWidth={3} />
@@ -338,15 +366,15 @@ const SectionCard = ({ section }) => {
         {!expanded && (
           <button
             onClick={() => setExpanded(true)}
-            className="mt-4 flex items-center gap-1.5 text-[11px] font-black font-display uppercase tracking-widest transition-colors"
-            style={{ color: section.color }}
+            className="mt-4 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest transition-colors"
+            style={{ color: section.color, fontFamily: "'Manrope', sans-serif" }}
           >
-            Voir plus <ChevronRight size={11} strokeWidth={3} />
+            <Eye size={12} strokeWidth={2.5} /> Voir plus
           </button>
         )}
       </div>
 
-      {/* Expanded detail */}
+      {/* Expanded */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -358,7 +386,7 @@ const SectionCard = ({ section }) => {
           >
             <div className="px-5 pb-6 pt-1 border-t border-gray-50 space-y-4">
 
-              {/* ── Présence detail ── */}
+              {/* ── Présence ── */}
               {section.id === 'presence' && (
                 <>
                   {section.detail.methods.map(method => {
@@ -369,13 +397,16 @@ const SectionCard = ({ section }) => {
                           <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#006c49] text-white">
                             <MIcon size={16} />
                           </div>
-                          <p className="font-display font-black text-[#1a1c1e] text-sm">{method.label}</p>
+                          <p className="font-black text-[#1a1c1e] text-sm" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            {method.label}
+                          </p>
                         </div>
                         <p className="text-xs text-gray-500 font-medium leading-relaxed">{method.desc}</p>
-                        <ol className="space-y-1">
+                        <ol className="space-y-1.5 pt-1">
                           {method.steps.map((s, i) => (
                             <li key={i} className="flex items-center gap-2 text-[11px] font-bold text-gray-600">
-                              <span className="w-4 h-4 rounded-full bg-[#006c49] text-white flex items-center justify-center text-[9px] font-black shrink-0">
+                              <span className="w-4 h-4 rounded-full bg-[#006c49] text-white flex items-center justify-center text-[9px] font-black shrink-0"
+                                style={{ fontFamily: "'Manrope', sans-serif" }}>
                                 {i + 1}
                               </span>
                               {s}
@@ -387,7 +418,7 @@ const SectionCard = ({ section }) => {
                   })}
 
                   <div className="flex items-start gap-2.5 bg-orange-50 rounded-2xl p-3.5 border border-orange-100">
-                    <MapPin size={15} className="text-orange-500 shrink-0 mt-0.5" />
+                    <TriangleAlert size={15} className="text-orange-500 shrink-0 mt-0.5" />
                     <p className="text-xs text-orange-700 font-bold leading-relaxed">{section.detail.gps}</p>
                   </div>
 
@@ -395,28 +426,25 @@ const SectionCard = ({ section }) => {
                 </>
               )}
 
-              {/* ── Agenda detail ── */}
+              {/* ── Agenda ── */}
               {section.id === 'agenda' && (
                 <>
                   <div>
-                    <p className="text-[11px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-gray-400"
+                      style={{ fontFamily: "'Manrope', sans-serif" }}>
                       Légende de l'agenda
                     </p>
                     <AgendaLegend legend={section.detail.legend} />
                   </div>
-
                   <ExampleCourse course={section.detail.exampleCourse} />
-
                   <div className="bg-[#f1f4f2] rounded-2xl p-4 flex items-start gap-3">
-                    <BarChart2 size={16} className="text-[#1a1c1e] shrink-0 mt-0.5" />
-                    <p className="text-xs text-gray-600 font-medium leading-relaxed">
-                      {section.detail.moduleInfo}
-                    </p>
+                    <Activity size={16} className="text-[#1a1c1e] shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-600 font-medium leading-relaxed">{section.detail.moduleInfo}</p>
                   </div>
                 </>
               )}
 
-              {/* ── Justificatif detail ── */}
+              {/* ── Justificatif ── */}
               {section.id === 'justificatif' && (
                 <>
                   {section.detail.methods.map(method => {
@@ -427,25 +455,28 @@ const SectionCard = ({ section }) => {
                           <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#b45309] text-white">
                             <MIcon size={16} />
                           </div>
-                          <p className="font-display font-black text-[#1a1c1e] text-sm">{method.label}</p>
+                          <p className="font-black text-[#1a1c1e] text-sm" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            {method.label}
+                          </p>
                         </div>
                         <p className="text-xs text-gray-600 font-medium leading-relaxed">{method.desc}</p>
                       </div>
                     );
                   })}
-
                   <div className="flex items-start gap-2.5 bg-[#f1f4f2] rounded-2xl p-3.5">
                     <FileText size={14} className="text-gray-500 shrink-0 mt-0.5" />
                     <p className="text-xs text-gray-600 font-bold">{section.detail.formats}</p>
                   </div>
-
                   <div>
-                    <p className="text-[11px] font-black font-display uppercase tracking-widest text-gray-400 mb-2">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2"
+                      style={{ fontFamily: "'Manrope', sans-serif" }}>
                       Types de motifs
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {section.detail.motifs.map(m => (
-                        <span key={m} className="px-3 py-1.5 bg-orange-50 text-orange-700 rounded-xl text-[11px] font-black font-display uppercase tracking-wide border border-orange-100">
+                        <span key={m}
+                          className="px-3 py-1.5 bg-orange-50 text-orange-700 rounded-xl text-[11px] font-black uppercase tracking-wide border border-orange-100"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {m}
                         </span>
                       ))}
@@ -454,7 +485,7 @@ const SectionCard = ({ section }) => {
                 </>
               )}
 
-              {/* ── Password detail ── */}
+              {/* ── Password ── */}
               {section.id === 'password' && (
                 <>
                   <div className="bg-[#eef2ff] border border-indigo-100 rounded-2xl p-4 space-y-3">
@@ -462,7 +493,9 @@ const SectionCard = ({ section }) => {
                       <div className="w-8 h-8 rounded-xl bg-[#4f46e5] flex items-center justify-center text-white">
                         <KeyRound size={16} />
                       </div>
-                      <p className="font-display font-black text-[#1a1c1e] text-sm">Règles du mot de passe</p>
+                      <p className="font-black text-[#1a1c1e] text-sm" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        Règles du mot de passe
+                      </p>
                     </div>
                     <ul className="space-y-2">
                       {section.detail.rules.map((rule, i) => (
@@ -474,9 +507,10 @@ const SectionCard = ({ section }) => {
                     </ul>
                   </div>
 
-                  {/* Mini simulacre UI */}
+                  {/* Aperçu UI mot de passe */}
                   <div className="bg-[#f1f4f2] rounded-2xl p-4 space-y-2">
-                    <p className="text-[10px] font-black font-display uppercase tracking-widest text-gray-400 mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3"
+                      style={{ fontFamily: "'Manrope', sans-serif" }}>
                       Aperçu de l'interface
                     </p>
                     <div className="bg-white rounded-xl py-3 px-4">
@@ -489,11 +523,15 @@ const SectionCard = ({ section }) => {
                     </div>
                     <div className="w-full py-3 bg-[#1a1c1e] rounded-xl flex items-center justify-center gap-2">
                       <CheckCircle2 size={14} className="text-white" />
-                      <span className="text-white text-xs font-black font-display uppercase tracking-wider">Confirmer</span>
+                      <span className="text-white text-xs font-black uppercase tracking-wider"
+                        style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        Confirmer
+                      </span>
                     </div>
                   </div>
                 </>
               )}
+
             </div>
           </motion.div>
         )}
@@ -503,11 +541,15 @@ const SectionCard = ({ section }) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// COMPOSANT PRINCIPAL : Modal info fullscreen
+// Modal fullscreen
 // ════════════════════════════════════════════════════════════════════════════
 const InfoModal = ({ onClose }) =>
   ReactDOM.createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} className="flex items-end sm:items-center justify-center">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@700;800;900&display=swap');
+      `}</style>
+
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -534,7 +576,8 @@ const InfoModal = ({ onClose }) =>
               <HelpCircle size={20} />
             </div>
             <div>
-              <h2 className="font-display font-black text-[#1a1c1e] text-xl tracking-tighter leading-tight">
+              <h2 className="font-black text-[#1a1c1e] text-xl tracking-tighter leading-tight"
+                style={{ fontFamily: "'Manrope', sans-serif" }}>
                 Aide & Fonctionnalités
               </h2>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
@@ -550,8 +593,8 @@ const InfoModal = ({ onClose }) =>
           </button>
         </div>
 
-        {/* Intro */}
-        <div className="px-5 pt-5 pb-3 bg-white border-b border-gray-50 shrink-0">
+        {/* Intro banner */}
+        <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-50 shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles size={14} className="text-[#006c49]" />
             <p className="text-xs font-bold text-gray-500 leading-relaxed">
@@ -560,7 +603,7 @@ const InfoModal = ({ onClose }) =>
           </div>
         </div>
 
-        {/* Content scrollable */}
+        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto p-4 min-h-0 space-y-3">
           {SECTIONS.map(section => (
             <SectionCard key={section.id} section={section} />
@@ -570,9 +613,12 @@ const InfoModal = ({ onClose }) =>
           <div className="bg-[#1a1c1e] rounded-[2rem] p-5 flex items-start gap-3">
             <GraduationCap size={20} className="text-[#006c49] shrink-0 mt-0.5" />
             <div>
-              <p className="font-display font-black text-white text-sm tracking-tighter">Taux d'assiduité minimum</p>
+              <p className="font-black text-white text-sm tracking-tighter"
+                style={{ fontFamily: "'Manrope', sans-serif" }}>
+                Taux d'assiduité minimum
+              </p>
               <p className="text-xs text-gray-400 font-medium mt-1 leading-relaxed">
-                Maintiens un taux de présence au-dessus de 75% pour chaque module afin d'éviter les sanctions académiques.
+                Maintiens un taux de présence au-dessus de 75 % pour chaque module afin d'éviter les sanctions académiques.
               </p>
             </div>
           </div>
@@ -589,7 +635,9 @@ const InfoModal = ({ onClose }) =>
     document.body
   );
 
-// ── Export : bouton + modal ────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// EXPORT — bouton + modal
+// ════════════════════════════════════════════════════════════════════════════
 const Info = () => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -602,7 +650,7 @@ const Info = () => {
           isOpen ? 'bg-[#d1f4e0] text-[#006c49]' : 'text-gray-400 hover:bg-gray-50'
         }`}
       >
-        <span className="text-xl leading-none select-none">❓</span>
+        <HelpCircle size={22} strokeWidth={2} />
       </button>
 
       <AnimatePresence>
