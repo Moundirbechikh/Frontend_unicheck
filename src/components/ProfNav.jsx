@@ -46,6 +46,8 @@ const ProfNav = () => {
     navigate('/', { replace: true });
   };
 
+  const isProfileActive = currentPath === '/prof/profil';
+
   return (
     <>
       {/* ── TOP NAVBAR ─────────────────────────────────────────────────────── */}
@@ -115,10 +117,18 @@ const ProfNav = () => {
                 <ProfInfo />
               </div>
 
-              {/* BADGE INITIALES */}
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider">
+              {/* BADGE INITIALES (DEVIENT LIEN VERS MON PROFIL) */}
+              <button
+                onClick={() => navigate('/prof/profil')}
+                title="Mon Profil"
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs border-2 shadow-sm tracking-wider transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer outline-none ring-2 ring-transparent focus:ring-[#006c49]/20
+                  ${isProfileActive 
+                    ? 'bg-[#006c49] text-white border-[#d1f4e0] shadow-md shadow-[#006c49]/20' 
+                    : 'bg-gray-900 text-white border-white hover:bg-[#006c49] hover:border-[#d1f4e0]'
+                  }`}
+              >
                 {initials}
-              </div>
+              </button>
 
               {/* DÉCONNEXION */}
               <button
@@ -144,14 +154,14 @@ const ProfNav = () => {
         <div className="max-w-md mx-auto mb-1 flex justify-center">
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeItem.id}
+              key={isProfileActive ? 'profil' : activeItem.id}
               initial={{ opacity: 0, y: 3 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -3 }}
               className="bg-[#d1f4e0] text-[#006c49] px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-[#006c49]/10"
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
-              {activeItem.label}
+              {isProfileActive ? 'Mon Profil' : activeItem.label}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -159,8 +169,10 @@ const ProfNav = () => {
         <div className="flex justify-between items-center max-w-md mx-auto relative px-2">
           {navItems.map((item) => {
             const isActive =
-              currentPath.includes(item.path) ||
-              (currentPath === '/prof' && item.id === 'tableau');
+              !isProfileActive && (
+                currentPath.includes(item.path) ||
+                (currentPath === '/prof' && item.id === 'tableau')
+              );
             const Icon = item.icon;
             return (
               <button

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
-import { User, Mail, QrCode, LogOut, KeyRound, Fingerprint, BadgeCheck, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { User, Mail, QrCode, LogOut, KeyRound, Fingerprint, BadgeCheck, X, AlertCircle, CheckCircle2, GraduationCap, BarChart2 } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
 
   // --- ÉTATS POUR LE MOT DE PASSE ---
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -30,18 +31,32 @@ const Profile = () => {
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('token');
+    const role = localStorage.getItem('userRole');
 
     if (!userId || !token) {
       navigate('/');
       return;
     }
 
-    fetch(`https://backend-unicheck.onrender.com/api/etudiants/me/${userId}`, {
+    setUserRole(role);
+
+    // Endpoint différent selon le rôle
+    const endpoint = role === 'professeur'
+      ? `https://backend-unicheck.onrender.com/api/professeurs/admin/tous-avec-stats` // On filtre côté client pour le moment
+      : `https://backend-unicheck.onrender.com/api/etudiants/me/${userId}`;
+
+    fetch(endpoint, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        setProfile(data);
+        if (role === 'professeur') {
+          // On trouve le profil du prof connecté dans la liste
+          const profProfile = data.find(p => p.id.toString() === userId);
+          setProfile(profProfile);
+        } else {
+          setProfile(data);
+        }
         setLoading(false);
       })
       .catch(err => console.error("Erreur profil:", err));
@@ -65,9 +80,12 @@ const Profile = () => {
     setIsUpdating(true);
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('token');
+    
+    // API diff selon le rôle
+    const apiRoute = userRole === 'professeur' ? 'professeurs' : 'etudiants';
 
     try {
-      const response = await fetch(`https://backend-unicheck.onrender.com/api/etudiants/${userId}/update-password`, {
+      const response = await fetch(`https://backend-unicheck.onrender.com/api/${apiRoute}/${userId}/update-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +123,7 @@ const Profile = () => {
     y.set(e.clientY - (rect.top + rect.height / 2));
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-display font-black text-2xl uppercase tracking-widest text-[#006c49]">Chargement...</div>;
+  if (loading || !profile) return <div className="min-h-screen flex items-center justify-center font-display font-black text-2xl uppercase tracking-widest text-[#006c49]">Chargement...</div>;
 
   return (
     <div className="min-h-screen bg-[#f1f4f2] pt-28 pb-32 px-4 md:px-8 font-body relative overflow-hidden">
@@ -139,7 +157,9 @@ const Profile = () => {
               </div>
               <div className="bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-2 backdrop-blur-md">
                 <BadgeCheck size={16} className="text-[#d1f4e0]" />
-                <span className="text-[10px] font-display font-black uppercase tracking-[0.2em]">Étudiant Actif</span>
+                <span className="text-[10px] font-display font-black uppercase tracking-[0.2em]">
+                  {userRole === 'professeur' ? 'Professeur Actif' : 'Étudiant Actif'}
+                </span>
               </div>
             </div>
 
@@ -151,49 +171,110 @@ const Profile = () => {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Spécialité</p>
-                  <p className="text-xl font-display font-black text-[#d1f4e0]">{profile.specialite || 'SITW'}</p>
+              {/* SECTION CONDITIONNELLE SELON LE ROLE */}
+              {userRole === 'etudiant' ? (
+                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Spécialité</p>
+                    <p className="text-xl font-display font-black text-[#d1f4e0]">{profile.specialite || 'SITW'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Groupe</p>
+                    <p className="text-xl font-display font-black">{profile.groupe || 'Master'}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Groupe</p>
-                  <p className="text-xl font-display font-black">{profile.groupe || 'Master'}</p>
-                </div>
-              </div>
+              ) : null}
 
               <div className="bg-black/30 p-4 rounded-2xl flex items-center gap-4 mt-6 border border-white/5">
                 <Mail size={20} className="text-[#006c49]" />
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Adresse Mail</p>
-                  <p className="font-display font-bold text-sm tracking-wide opacity-90">{profile.email || 'etudiant@univ.dz'}</p>
+                  <p className="font-display font-bold text-sm tracking-wide opacity-90">{profile.email || 'Non renseigné'}</p>
                 </div>
               </div>
             </div>
           </motion.div>
         </div>
 
-        {/* COLONNE DROITE : ACTIONS */}
+        {/* COLONNE DROITE : ACTIONS ET INFOS SUPP */}
         <div className="lg:col-span-5 space-y-6 flex flex-col justify-end">
           
-          <div className="glass-effect p-8 rounded-[2.5rem] shadow-lg border border-white relative overflow-hidden group">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-display font-black text-[#1a1c1e] tracking-tighter">Pass Secours</h3>
-                <p className="text-xs font-bold text-gray-400">QR Code d'identification</p>
+          {userRole === 'etudiant' ? (
+            // AFFICHER LE QR CODE POUR ETUDIANT
+            <div className="glass-effect p-8 rounded-[2.5rem] shadow-lg border border-white relative overflow-hidden group bg-white">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-display font-black text-[#1a1c1e] tracking-tighter">Pass Secours</h3>
+                  <p className="text-xs font-bold text-gray-400">QR Code d'identification</p>
+                </div>
+                <div className="w-12 h-12 bg-[#f1f4f2] rounded-2xl flex items-center justify-center text-[#006c49]">
+                  <QrCode size={24} strokeWidth={2} />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-[#f1f4f2] rounded-2xl flex items-center justify-center text-[#006c49]">
-                <QrCode size={24} strokeWidth={2} />
+              
+              <div className="w-full aspect-square bg-white rounded-3xl flex items-center justify-center border-4 border-dashed border-gray-100">
+                <div 
+                  className="w-3/4 h-3/4 bg-cover opacity-80 mix-blend-multiply"
+                  style={{ backgroundImage: `url(https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=STUDENT-${profile.id})` }}
+                />
               </div>
             </div>
-            
-            <div className="w-full aspect-square bg-white rounded-3xl flex items-center justify-center border-4 border-dashed border-gray-100">
-              <div 
-                className="w-3/4 h-3/4 bg-cover opacity-80 mix-blend-multiply"
-                style={{ backgroundImage: `url(https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=STUDENT-${profile.id})` }}
-              />
+          ) : (
+            // AFFICHER MODULES ET ASSIDUITÉ POUR PROFESSEUR
+            <div className="glass-effect p-8 rounded-[2.5rem] shadow-lg border border-white relative overflow-hidden group bg-white">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-display font-black text-[#1a1c1e] tracking-tighter">Mes Modules</h3>
+                  <p className="text-xs font-bold text-gray-400">Et assiduité associée</p>
+                </div>
+                <div className="w-12 h-12 bg-[#d1f4e0] rounded-2xl flex items-center justify-center text-[#006c49]">
+                  <GraduationCap size={24} strokeWidth={2} />
+                </div>
+              </div>
+              
+              {/* TAUX GLOBAL */}
+              <div className="bg-[#1a1c1e] text-white p-4 rounded-2xl flex justify-between items-center mb-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                    Taux de présence global
+                  </p>
+                  <p className="font-display font-black text-3xl leading-none">
+                    {profile.tauxPresenceGlobal || 0}%
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-full border-4 border-[#006c49] flex items-center justify-center">
+                  <span className="text-[9px] font-black uppercase">Global</span>
+                </div>
+              </div>
+
+              {/* LISTE DES MODULES */}
+              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                {profile.modulesStats?.length > 0 ? (
+                  profile.modulesStats.map((ms, idx) => (
+                    <div key={idx} className="bg-[#f1f4f2] p-3 rounded-xl flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold text-[#1a1c1e] break-words w-full md:w-auto md:max-w-[150px]">
+                        {ms.libelle}
+                      </span>
+                      <div className="flex items-center gap-3 shrink-0 w-1/2 justify-end">
+                        <div className="flex-1 h-1.5 bg-white rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#006c49] rounded-full"
+                            style={{ width: `${ms.taux}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-black text-[#006c49] w-8 text-right shrink-0">
+                          {ms.taux}%
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-400 text-center italic py-4">Aucun module assigné</p>
+                )}
+              </div>
+
             </div>
-          </div>
+          )}
 
           <div className="space-y-3">
             <button 
@@ -292,6 +373,10 @@ const Profile = () => {
       <style>{`
         .font-display { font-family: 'Manrope', sans-serif; }
         .glass-effect { background: rgba(255,255,255,0.6); backdrop-filter: blur(15px); }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
       `}</style>
     </div>
   );
