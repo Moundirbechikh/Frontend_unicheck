@@ -1,14 +1,14 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, GraduationCap, Activity, TrendingUp, TrendingDown,
   UserPlus, CalendarPlus, Zap, ShieldCheck, Radar, Sparkles,
   Server, MapPin, BookOpen, X, AlertCircle,
-  Upload, FileText, CheckCircle2, Loader2, Plus, Trash2
+  Upload, FileText, CheckCircle2, Loader2, Plus, Trash2, KeyRound
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// ── Icône selon le type d'insight ─────────────────────────────────────────
+// -- Icône selon le type d'insight -----------------------------------------
 const InsightIcon = ({ type }) => {
   if (type === 'hausse' || type === 'hausse_spe')
     return <TrendingUp size={18} strokeWidth={3} />;
@@ -17,7 +17,7 @@ const InsightIcon = ({ type }) => {
   return <FileText size={18} strokeWidth={3} />;
 };
 
-// ── Couleurs selon le type ─────────────────────────────────────────────────
+// -- Couleurs selon le type -------------------------------------------------
 const insightStyle = (type) => {
   if (type === 'hausse' || type === 'hausse_spe')
     return { bg: 'bg-[#d1f4e0]/50', ibg: 'bg-[#d1f4e0]', ic: 'text-[#006c49]', bc: 'border-[#006c49]/10' };
@@ -26,7 +26,7 @@ const insightStyle = (type) => {
   return { bg: 'bg-blue-50/50', ibg: 'bg-blue-100', ic: 'text-blue-500', bc: 'border-blue-100' };
 };
 
-// ── Composant Insights dynamique ──────────────────────────────────────────
+// -- Composant Insights dynamique ------------------------------------------
 const InsightsDynamiques = ({ insights, loading }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -162,7 +162,7 @@ const InsightsDynamiques = ({ insights, loading }) => {
   );
 };
 
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
@@ -177,14 +177,20 @@ const AdminDashboard = () => {
     tauxPresenceGlobal: 0
   });
 
-  // ── Insights dynamiques ───────────────────────────────────────────────────
+  // -- Insights dynamiques ---------------------------------------------------
   const [insights,        setInsights]        = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(true);
 
+  // -- Nouveaux États Formulaires --
   const [newSalle,     setNewSalle]     = useState({ nom: '', departement: '' });
   const [newCours,     setNewCours]     = useState({ libelle: '', specialite: 'SITW' });
   const [assignations, setAssignations] = useState([]);
   const [allProfs,     setAllProfs]     = useState([]);
+  
+  const [newProf,      setNewProf]      = useState({ nom: '', prenom: '', email: '', password: '' });
+  const [newEtudiant,  setNewEtudiant]  = useState({ nom: '', prenom: '', matricule: '', email: '', specialite: '', groupe: '' });
+  const [creationSuccess, setCreationSuccess] = useState(null);
+
   const [csvFile,      setCsvFile]      = useState(null);
   const [csvPreview,   setCsvPreview]   = useState([]);
   const [importResult, setImportResult] = useState(null);
@@ -269,6 +275,47 @@ const AdminDashboard = () => {
     finally { setLoading(false); }
   };
 
+  const handleAddProfesseur = async () => {
+    if (!newProf.nom || !newProf.prenom || !newProf.email || !newProf.password) return setError("Tous les champs sont requis.");
+    if (newProf.password.length < 6) return setError("Mot de passe : 6 caractères minimum.");
+    
+    setLoading(true); setError(null); setCreationSuccess(null);
+    try {
+      const res = await fetch("https://backend-unicheck.onrender.com/api/inscription/professeur", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProf)
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      
+      setCreationSuccess("Professeur créé et notifié par email avec succès !");
+      setTimeout(() => { closeModal(); }, 2000);
+      
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleAddEtudiant = async () => {
+    if (!newEtudiant.nom || !newEtudiant.prenom || !newEtudiant.matricule) return setError("Nom, prénom et matricule requis.");
+    
+    setLoading(true); setError(null); setCreationSuccess(null);
+    try {
+      const res = await fetch("https://backend-unicheck.onrender.com/api/etudiants/admin/creer", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEtudiant)
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      
+      setCreationSuccess("Étudiant pré-inscrit avec succès !");
+      setTimeout(() => { closeModal(); }, 2000);
+      
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
   const parsePreview = (file) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -301,9 +348,11 @@ const AdminDashboard = () => {
   };
 
   const closeModal = () => {
-    setActiveModal(null); setError(null);
+    setActiveModal(null); setError(null); setCreationSuccess(null);
     setNewSalle({ nom: '', departement: '' });
     setNewCours({ libelle: '', specialite: 'SITW' });
+    setNewProf({ nom: '', prenom: '', email: '', password: '' });
+    setNewEtudiant({ nom: '', prenom: '', matricule: '', email: '', specialite: '', groupe: '' });
     setAssignations([]); setAllProfs([]);
     setCsvFile(null); setCsvPreview([]); setImportResult(null);
   };
@@ -416,8 +465,8 @@ const AdminDashboard = () => {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
-                { label: "Ajouter\nÉtudiant",  icon: UserPlus,    hover: 'bg-[#006c49]', modal: null },
-                { label: "Nouveau\nProfesseur", icon: Users,       hover: 'bg-[#1a1c1e]', modal: null },
+                { label: "Ajouter\nÉtudiant",  icon: UserPlus,    hover: 'bg-[#006c49]', modal: 'etudiant' },
+                { label: "Nouveau\nProfesseur", icon: Users,       hover: 'bg-[#1a1c1e]', modal: 'professeur' },
                 { label: "Gérer\nPlannings",    icon: CalendarPlus,hover: 'bg-[#006c49]', modal: null, route: '/admin/planning' },
                 { label: "Gestion\nSalles",     icon: MapPin,      hover: 'bg-[#006c49]', modal: 'salle' },
                 { label: "Ajouter\nModule",     icon: BookOpen,    hover: 'bg-[#1a1c1e]', modal: 'cours' },
@@ -437,10 +486,10 @@ const AdminDashboard = () => {
             </div>
           </motion.div>
 
-          {/* ── INSIGHTS DYNAMIQUES ──────────────────────────────────────── */}
+          {/* -- INSIGHTS DYNAMIQUES ---------------------------------------- */}
           <motion.div variants={item} className="md:col-span-5 space-y-4 flex flex-col">
             <h3 className="font-display font-black text-xl text-[#1a1c1e] tracking-tighter flex items-center gap-2 shrink-0">
-              <Sparkles className="text-orange-400" size={20} /> Insights Système
+               <Sparkles className="text-orange-400" size={20} /> Insights Système
             </h3>
             <InsightsDynamiques insights={insights} loading={insightsLoading} />
           </motion.div>
@@ -448,7 +497,7 @@ const AdminDashboard = () => {
         </div>
       </motion.div>
 
-      {/* ══════════════════ MODALES ══════════════════ */}
+      {/* ------------------ MODALES ------------------ */}
       <AnimatePresence>
         {activeModal && (
           <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-4">
@@ -466,7 +515,7 @@ const AdminDashboard = () => {
                 <X size={18} />
               </button>
 
-              {/* ── SALLE ────────────────────────────────── */}
+              {/* -- SALLE ---------------------------------- */}
               {activeModal === 'salle' && (
                 <div className="flex flex-col h-full max-h-[85vh]">
                   <h2 className="font-display font-black text-4xl text-[#1a1c1e] tracking-tighter leading-[0.8] mb-6 shrink-0">
@@ -490,7 +539,131 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* ── MODULE + ASSIGNATIONS ─────────────────── */}
+              {/* -- PROFESSEUR ---------------------------------- */}
+              {activeModal === 'professeur' && (
+                <div className="flex flex-col h-full max-h-[85vh]">
+                  <h2 className="font-display font-black text-4xl text-[#1a1c1e] tracking-tighter leading-[0.8] mb-6 shrink-0">
+                    Nouveau <br/> <span className="text-[#006c49]">Professeur.</span>
+                  </h2>
+                  <div className="space-y-4 overflow-y-auto pr-2 pb-4 flex-1 custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Nom</label>
+                        <input type="text" placeholder="Ex: Dupont"
+                          value={newProf.nom} onChange={e => setNewProf({...newProf, nom: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Prénom</label>
+                        <input type="text" placeholder="Ex: Jean"
+                          value={newProf.prenom} onChange={e => setNewProf({...newProf, prenom: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Adresse Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input type="email" placeholder="jean.dupont@univ.dz"
+                          value={newProf.email} onChange={e => setNewProf({...newProf, email: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 pl-12 pr-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Mot de passe provisoire</label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input type="text" placeholder="Min. 6 caractères"
+                          value={newProf.password} onChange={e => setNewProf({...newProf, password: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 pl-12 pr-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                    </div>
+
+                    {error && <ErrorBox message={error} />}
+                    {creationSuccess && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                        className="bg-[#d1f4e0] p-4 rounded-2xl flex items-center gap-3 border border-[#006c49]/20">
+                        <CheckCircle2 className="text-[#006c49] shrink-0" size={20}/>
+                        <p className="text-xs text-[#006c49] font-bold">{creationSuccess}</p>
+                      </motion.div>
+                    )}
+                  </div>
+                  <div className="pt-4 shrink-0 mt-auto bg-white">
+                    <button onClick={handleAddProfesseur} disabled={loading || creationSuccess}
+                      className="w-full py-6 bg-[#1a1c1e] text-white rounded-[2.5rem] font-display font-black text-xs uppercase tracking-[0.2em] hover:bg-[#006c49] disabled:bg-gray-200 transition-all flex items-center justify-center gap-2">
+                      {loading ? <><Loader2 size={16} className="animate-spin"/> Création...</> : "Créer le professeur"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* -- ETUDIANT ---------------------------------- */}
+              {activeModal === 'etudiant' && (
+                <div className="flex flex-col h-full max-h-[85vh]">
+                  <h2 className="font-display font-black text-4xl text-[#1a1c1e] tracking-tighter leading-[0.8] mb-6 shrink-0">
+                    Ajouter <br/> <span className="text-[#006c49]">Étudiant.</span>
+                  </h2>
+                  <div className="space-y-4 overflow-y-auto pr-2 pb-4 flex-1 custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Nom</label>
+                        <input type="text" placeholder="Nom"
+                          value={newEtudiant.nom} onChange={e => setNewEtudiant({...newEtudiant, nom: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Prénom</label>
+                        <input type="text" placeholder="Prénom"
+                          value={newEtudiant.prenom} onChange={e => setNewEtudiant({...newEtudiant, prenom: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Matricule</label>
+                      <input type="text" placeholder="Ex: 202131... (Unique)"
+                        value={newEtudiant.matricule} onChange={e => setNewEtudiant({...newEtudiant, matricule: e.target.value})}
+                        className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Email (Optionnel)</label>
+                      <input type="email" placeholder="Pour l'inscription future"
+                        value={newEtudiant.email} onChange={e => setNewEtudiant({...newEtudiant, email: e.target.value})}
+                        className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Spécialité</label>
+                        <input type="text" placeholder="Ex: SITW"
+                          value={newEtudiant.specialite} onChange={e => setNewEtudiant({...newEtudiant, specialite: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Groupe</label>
+                        <input type="text" placeholder="Ex: G1"
+                          value={newEtudiant.groupe} onChange={e => setNewEtudiant({...newEtudiant, groupe: e.target.value})}
+                          className="w-full bg-[#f1f4f2] rounded-2xl py-4 px-5 font-bold text-sm outline-none border-2 border-transparent focus:border-[#006c49]/30" />
+                      </div>
+                    </div>
+
+                    {error && <ErrorBox message={error} />}
+                    {creationSuccess && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                        className="bg-[#d1f4e0] p-4 rounded-2xl flex items-center gap-3 border border-[#006c49]/20">
+                        <CheckCircle2 className="text-[#006c49] shrink-0" size={20}/>
+                        <p className="text-xs text-[#006c49] font-bold">{creationSuccess}</p>
+                      </motion.div>
+                    )}
+                  </div>
+                  <div className="pt-4 shrink-0 mt-auto bg-white">
+                    <button onClick={handleAddEtudiant} disabled={loading || creationSuccess}
+                      className="w-full py-6 bg-[#1a1c1e] text-white rounded-[2.5rem] font-display font-black text-xs uppercase tracking-[0.2em] hover:bg-[#006c49] disabled:bg-gray-200 transition-all flex items-center justify-center gap-2">
+                      {loading ? <><Loader2 size={16} className="animate-spin"/> Création...</> : "Ajouter l'étudiant"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* -- MODULE + ASSIGNATIONS ------------------- */}
               {activeModal === 'cours' && (
                 <div className="flex flex-col h-full max-h-[85vh]">
                   <h2 className="font-display font-black text-4xl text-[#1a1c1e] tracking-tighter leading-[0.8] mb-6 shrink-0">
@@ -580,7 +753,7 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* ── IMPORT CSV ────────────────────────────── */}
+              {/* -- IMPORT CSV ------------------------------ */}
               {activeModal === 'csv' && (
                 <div className="flex flex-col h-full max-h-[85vh]">
                   <h2 className="font-display font-black text-4xl text-[#1a1c1e] tracking-tighter leading-[0.8] mb-6 shrink-0">
