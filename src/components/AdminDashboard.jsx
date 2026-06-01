@@ -275,6 +275,7 @@ const AdminDashboard = () => {
     finally { setLoading(false); }
   };
 
+  // ✅ APPEL CORRIGÉ (API INSCRIPTION PROF)
   const handleAddProfesseur = async () => {
     if (!newProf.nom || !newProf.prenom || !newProf.email || !newProf.password) return setError("Tous les champs sont requis.");
     if (newProf.password.length < 6) return setError("Mot de passe : 6 caractères minimum.");
@@ -296,12 +297,13 @@ const AdminDashboard = () => {
     finally { setLoading(false); }
   };
 
+  // ✅ APPEL CORRIGÉ (API INSCRIPTION ETUDIANT ADMIN)
   const handleAddEtudiant = async () => {
     if (!newEtudiant.nom || !newEtudiant.prenom || !newEtudiant.matricule) return setError("Nom, prénom et matricule requis.");
     
     setLoading(true); setError(null); setCreationSuccess(null);
     try {
-      const res = await fetch("https://backend-unicheck.onrender.com/api/etudiants/admin/creer", {
+      const res = await fetch("https://backend-unicheck.onrender.com/api/inscription/etudiant/admin/creer", {
         method: "POST",
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(newEtudiant)
