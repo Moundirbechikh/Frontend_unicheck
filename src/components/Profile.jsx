@@ -53,6 +53,7 @@ const Profile = () => {
         return res.json();
       })
       .then(data => {
+        console.log("DONNÉES REÇUES DU BACKEND :", data); // AJOUTE CETTE LIGNE
         setProfile(data); // Plus besoin de filtrer, le backend renvoie directement le bon profil
         setLoading(false);
       })
