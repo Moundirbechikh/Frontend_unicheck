@@ -31,7 +31,7 @@ const Profile = () => {
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('token');
-    const role = localStorage.getItem('userRole');
+    const role = localStorage.getItem('userRole'); // Ici le rôle est 'prof' ou 'etudiant'
 
     if (!userId || !token) {
       navigate('/');
@@ -40,26 +40,26 @@ const Profile = () => {
 
     setUserRole(role);
 
-    // Endpoint différent selon le rôle
-    const endpoint = role === 'professeur'
-      ? `https://backend-unicheck.onrender.com/api/professeurs/admin/tous-avec-stats` // On filtre côté client pour le moment
+    // On utilise la bonne URL selon le rôle exact enregistré ('prof' ou 'etudiant')
+    const endpoint = role === 'prof'
+      ? `https://backend-unicheck.onrender.com/api/professeurs/me/${userId}`
       : `https://backend-unicheck.onrender.com/api/etudiants/me/${userId}`;
 
     fetch(endpoint, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Erreur serveur');
+        return res.json();
+      })
       .then(data => {
-        if (role === 'professeur') {
-          // On trouve le profil du prof connecté dans la liste
-          const profProfile = data.find(p => p.id.toString() === userId);
-          setProfile(profProfile);
-        } else {
-          setProfile(data);
-        }
+        setProfile(data); // Plus besoin de filtrer, le backend renvoie directement le bon profil
         setLoading(false);
       })
-      .catch(err => console.error("Erreur profil:", err));
+      .catch(err => {
+        console.error("Erreur profil:", err);
+        setLoading(false);
+      });
   }, [navigate]);
 
   // --- LOGIQUE DE MISE À JOUR DU MOT DE PASSE ---
@@ -81,8 +81,8 @@ const Profile = () => {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('token');
     
-    // API diff selon le rôle
-    const apiRoute = userRole === 'professeur' ? 'professeurs' : 'etudiants';
+    // API diff selon le rôle exact
+    const apiRoute = userRole === 'prof' ? 'professeurs' : 'etudiants';
 
     try {
       const response = await fetch(`https://backend-unicheck.onrender.com/api/${apiRoute}/${userId}/update-password`, {
@@ -100,7 +100,7 @@ const Profile = () => {
           setIsPasswordModalOpen(false);
           setPasswords({ newPassword: '', confirmPassword: '' });
           setStatusMsg({ type: '', text: '' });
-        }, 2000); // Ferme la modale après 2 secondes
+        }, 2000);
       } else {
         setStatusMsg({ type: 'error', text: 'Erreur lors de la mise à jour.' });
       }
@@ -123,7 +123,8 @@ const Profile = () => {
     y.set(e.clientY - (rect.top + rect.height / 2));
   };
 
-  if (loading || !profile) return <div className="min-h-screen flex items-center justify-center font-display font-black text-2xl uppercase tracking-widest text-[#006c49]">Chargement...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-display font-black text-2xl uppercase tracking-widest text-[#006c49]">Chargement...</div>;
+  if (!profile) return <div className="min-h-screen flex items-center justify-center font-display font-black text-xl uppercase text-red-500">Erreur de chargement du profil</div>;
 
   return (
     <div className="min-h-screen bg-[#f1f4f2] pt-28 pb-32 px-4 md:px-8 font-body relative overflow-hidden">
@@ -158,7 +159,7 @@ const Profile = () => {
               <div className="bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-2 backdrop-blur-md">
                 <BadgeCheck size={16} className="text-[#d1f4e0]" />
                 <span className="text-[10px] font-display font-black uppercase tracking-[0.2em]">
-                  {userRole === 'professeur' ? 'Professeur Actif' : 'Étudiant Actif'}
+                  {userRole === 'prof' ? 'Professeur Actif' : 'Étudiant Actif'}
                 </span>
               </div>
             </div>
@@ -272,7 +273,6 @@ const Profile = () => {
                   <p className="text-xs text-gray-400 text-center italic py-4">Aucun module assigné</p>
                 )}
               </div>
-
             </div>
           )}
 
