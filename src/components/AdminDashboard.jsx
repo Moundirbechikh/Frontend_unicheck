@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, GraduationCap, Activity, TrendingUp, TrendingDown,
   UserPlus, CalendarPlus, Zap, ShieldCheck, Radar, Sparkles,
-  Server, MapPin, BookOpen, X, AlertCircle,
+  Server, MapPin, BookOpen, X, AlertCircle,Mail,
   Upload, FileText, CheckCircle2, Loader2, Plus, Trash2, KeyRound
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
