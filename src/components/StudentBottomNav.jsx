@@ -129,10 +129,13 @@ const StudentBottomNav = () => {
                 <Info />
               </div>
 
-              {/* AVATAR */}
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#10b981] to-[#006c49] flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider">
-                {initials}
-              </div>
+              <button
+  onClick={() => navigate('/student/profil')}
+  title="Mon Profil"
+  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#006c49] hover:bg-[#1a1c1e] flex items-center justify-center text-white font-black text-xs border-2 border-white shadow-sm tracking-wider transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+>
+  {initials}
+</button>
 
               {/* DÉCONNEXION */}
               <button
