@@ -193,7 +193,7 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
         console.error("Caméra inaccessible :", e);
       }
     }
-  }, [selectedCamId]);
+  }, [selectedCamId, soumettre]); // ✅ AJOUTE 'soumettre' ICI
 
   useEffect(() => {
     if (!isOpen || mode !== 'camera' || status !== 'idle' || gpsPhase !== 'success') return;
