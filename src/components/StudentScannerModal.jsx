@@ -161,46 +161,6 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
       scannerRef.current = null;
     }
   };
-
-  const startScanner = useCallback(async () => {
-    if (!scannerDivRef.current) return;
-    await stopScanner();
-
-    const qr = new Html5Qrcode(SCANNER_ID, {
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      verbose: false,
-    });
-    scannerRef.current = qr;
-
-    const config = { fps: 15, qrbox: { width: 230, height: 230 }, aspectRatio: 1.0 };
-
-    const onDecode = async (decoded) => {
-      if (processingRef.current) return;
-      processingRef.current = true;
-      await soumettre(decoded);
-    };
-
-    try {
-      if (mobile.current) {
-        await qr.start({ facingMode: { exact: "environment" } }, config, onDecode, () => {});
-      } else if (selectedCamId) {
-        await qr.start(selectedCamId, config, onDecode, () => {});
-      }
-    } catch {
-      try {
-        await qr.start({ facingMode: "environment" }, config, onDecode, () => {});
-      } catch (e) {
-        console.error("Caméra inaccessible :", e);
-      }
-    }
-  }, [selectedCamId, soumettre]); // ✅ AJOUTE 'soumettre' ICI
-
-  useEffect(() => {
-    if (!isOpen || mode !== 'camera' || status !== 'idle' || gpsPhase !== 'success') return;
-    const t = setTimeout(() => startScanner(), 400);
-    return () => { clearTimeout(t); stopScanner(); };
-  }, [isOpen, mode, status, gpsPhase, startScanner]);
-
   // ── Validation ───────────────────────────────────────────────────────────
   const soumettre = useCallback(async (token) => {
     if (!token?.trim()) return;
@@ -250,6 +210,47 @@ const StudentScannerModal = ({ isOpen, onClose, onScanSuccess, studentId }) => {
       }, 3000);
     }
   }, [gpsCoords, studentId, onScanSuccess, onClose]);
+
+  const startScanner = useCallback(async () => {
+    if (!scannerDivRef.current) return;
+    await stopScanner();
+
+    const qr = new Html5Qrcode(SCANNER_ID, {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      verbose: false,
+    });
+    scannerRef.current = qr;
+
+    const config = { fps: 15, qrbox: { width: 230, height: 230 }, aspectRatio: 1.0 };
+
+    const onDecode = async (decoded) => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      await soumettre(decoded);
+    };
+
+    try {
+      if (mobile.current) {
+        await qr.start({ facingMode: { exact: "environment" } }, config, onDecode, () => {});
+      } else if (selectedCamId) {
+        await qr.start(selectedCamId, config, onDecode, () => {});
+      }
+    } catch {
+      try {
+        await qr.start({ facingMode: "environment" }, config, onDecode, () => {});
+      } catch (e) {
+        console.error("Caméra inaccessible :", e);
+      }
+    }
+  }, [selectedCamId, soumettre]); // ✅ AJOUTE 'soumettre' ICI
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'camera' || status !== 'idle' || gpsPhase !== 'success') return;
+    const t = setTimeout(() => startScanner(), 400);
+    return () => { clearTimeout(t); stopScanner(); };
+  }, [isOpen, mode, status, gpsPhase, startScanner]);
+
+
 
   const handleManualSubmit = () => {
     if (!manualToken.trim() || processingRef.current) return;
