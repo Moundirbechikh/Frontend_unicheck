@@ -4,9 +4,9 @@ import {
   UserPlus, Search, GraduationCap, ArrowRight,
   Download, Loader2, X, CheckCircle2, AlertCircle,
   Shield, User, Mail, Hash, Smartphone, RefreshCw,
-  ArrowUpDown, FileText, BarChart2
+  ArrowUpDown, FileText, BarChart2, Trash2
 } from 'lucide-react';
-import StudentDetailModal from './StudentDetailModal'; // ✅ Import du composant externe
+import StudentDetailModal from './StudentDetailModal';
 
 const API = 'https://backend-unicheck.onrender.com';
 const EXCLUSION_THRESHOLD = 70;
@@ -34,20 +34,28 @@ const exportToCSV = (students) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 const AdminStudentManager = () => {
-  const [students,       setStudents]       = useState([]);
-  const [loading,        setLoading]        = useState(true);
-  const [searchTerm,     setSearchTerm]     = useState('');
-  const [filterSpe,      setFilterSpe]      = useState('Tous');
-  const [filterGrp,      setFilterGrp]      = useState('Tous');
-  const [filterStatus,   setFilterStatus]   = useState('Tous'); // 'Tous' | 'Exclus' | 'Non Exclus'
-  const [showSansCompte, setShowSansCompte] = useState(false);
+  const [students,        setStudents]        = useState([]);
+  const [loading,         setLoading]         = useState(true);
+  const [searchTerm,      setSearchTerm]      = useState('');
+  const [filterSpe,       setFilterSpe]       = useState('Tous');
+  const [filterGrp,       setFilterGrp]       = useState('Tous');
+  const [filterStatus,    setFilterStatus]    = useState('Tous'); // 'Tous' | 'Exclus' | 'Non Exclus'
+  const [showSansCompte,  setShowSansCompte]  = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  
-  // États de tri (Identique au ProfManager)
-  const [sortBy,         setSortBy]         = useState('nom'); // 'nom' | 'presence' | 'absences' | 'matricule'
-  const [sortOrder,      setSortOrder]      = useState('asc'); // 'asc' | 'desc'
 
-  const token = localStorage.getItem('token');
+  // États de tri
+  const [sortBy,    setSortBy]    = useState('nom');  // 'nom' | 'presence' | 'absences' | 'matricule'
+  const [sortOrder, setSortOrder] = useState('asc');  // 'asc' | 'desc'
+
+  // ── États pour la suppression ─────────────────────────────────────────────
+  // studentToDelete : l'étudiant qu'on est en train de vouloir supprimer
+  // deleteLoading   : true pendant que la requête DELETE tourne
+  // deleteError     : message d'erreur si la suppression échoue
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [deleteLoading,   setDeleteLoading]   = useState(false);
+  const [deleteError,     setDeleteError]     = useState(null);
+
+  const token   = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -71,8 +79,8 @@ const AdminStudentManager = () => {
       .filter(g => g && g !== '—')
   )];
 
-  const excludedCount    = students.filter(s => s.attendance < EXCLUSION_THRESHOLD).length;
-  const sansCompteCount  = students.filter(s => !s.compteActif).length;
+  const excludedCount   = students.filter(s => s.attendance < EXCLUSION_THRESHOLD).length;
+  const sansCompteCount = students.filter(s => !s.compteActif).length;
 
   // Filtrage combiné et cumulable
   let filtered = students.filter(s => {
@@ -81,17 +89,17 @@ const AdminStudentManager = () => {
                           || s.matricule?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchSpe        = filterSpe === 'Tous' || s.specialite === filterSpe;
     const matchGrp        = filterGrp === 'Tous' || s.groupe === filterGrp;
-    
+
     let matchStatus = true;
-    if (filterStatus === 'Exclus') matchStatus = s.attendance < EXCLUSION_THRESHOLD;
+    if (filterStatus === 'Exclus')     matchStatus = s.attendance < EXCLUSION_THRESHOLD;
     if (filterStatus === 'Non Exclus') matchStatus = s.attendance >= EXCLUSION_THRESHOLD;
 
     const matchSansCompte = !showSansCompte || !s.compteActif;
-    
+
     return matchSearch && matchSpe && matchGrp && matchStatus && matchSansCompte;
   });
 
-  // Logique de Tri (Classement par présence, nom, etc.)
+  // Logique de Tri
   filtered.sort((a, b) => {
     let valA, valB;
     if (sortBy === 'nom') {
@@ -107,13 +115,12 @@ const AdminStudentManager = () => {
       valA = (a.matricule || '').toLowerCase();
       valB = (b.matricule || '').toLowerCase();
     }
-
     if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
     if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
     return 0;
   });
 
-  // ── Logique de Sauvegarde (Transmise au Modal) ───────────────────────────
+  // ── Logique de Sauvegarde (Transmise au Modal) ────────────────────────────
   const handleSave = async (updatedStudent) => {
     try {
       const res = await fetch(`${API}/api/etudiants/${updatedStudent.id}`, {
@@ -122,7 +129,7 @@ const AdminStudentManager = () => {
         body: JSON.stringify(updatedStudent),
       });
       const data = await res.json();
-      
+
       if (data.success) {
         setStudents(prev => prev.map(s => s.id === updatedStudent.id ? { ...s, ...updatedStudent } : s));
         setSelectedStudent(null);
@@ -133,6 +140,51 @@ const AdminStudentManager = () => {
     } catch (err) {
       alert('Erreur réseau lors de la sauvegarde.');
     }
+  };
+
+  // ── Logique de Suppression ────────────────────────────────────────────────
+  // Étape 1 : L'admin clique sur la poubelle → on stocke l'étudiant dans
+  //           studentToDelete → ça ouvre la modale de confirmation
+  const handleDeleteClick = (e, student) => {
+    // e.stopPropagation() est CRUCIAL ici : sans ça, le clic sur la poubelle
+    // ouvrirait aussi la modale de détail (car la carte entière est cliquable)
+    e.stopPropagation();
+    setStudentToDelete(student);
+    setDeleteError(null);
+  };
+
+  // Étape 2 : L'admin confirme dans la modale → on envoie le DELETE au backend
+  const handleDeleteConfirm = async () => {
+    if (!studentToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch(`${API}/api/etudiants/${studentToDelete.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        // Retire l'étudiant de la liste locale sans refetch
+        // → mise à jour instantanée de l'UI
+        setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
+        setStudentToDelete(null); // ferme la modale
+      } else {
+        setDeleteError(data.message || "Erreur lors de la suppression.");
+      }
+    } catch (err) {
+      setDeleteError("Erreur réseau. Vérifiez votre connexion.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Étape 3 : L'admin annule → on ferme la modale sans rien faire
+  const handleDeleteCancel = () => {
+    setStudentToDelete(null);
+    setDeleteError(null);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -184,9 +236,9 @@ const AdminStudentManager = () => {
           </div>
         </div>
 
-        {/* ── Filtres Restructurés (Style ProfManager) ─────────────────────── */}
+        {/* ── Filtres ───────────────────────────────────────────────────────── */}
         <div className="space-y-4">
-          
+
           {/* Barre principale : Recherche + Tri */}
           <div className="bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3 items-center w-full">
             <div className="relative w-full md:flex-1 group">
@@ -223,10 +275,10 @@ const AdminStudentManager = () => {
             </div>
           </div>
 
-          {/* Deuxième ligne : Statuts (Bordure 2px) + Spécialités + Groupes */}
+          {/* Deuxième ligne : Statuts + Spécialités + Groupes */}
           <div className="flex flex-wrap gap-3 items-center">
-            
-            {/* Conteneur Statut Présence avec Contour 2px */}
+
+            {/* Conteneur Statut Présence */}
             <div className="flex items-center gap-1 bg-white border-2 border-gray-200 p-1 rounded-[1.5rem] shadow-sm shrink-0">
               {[
                 { id: 'Tous',       label: 'Tous' },
@@ -244,7 +296,7 @@ const AdminStudentManager = () => {
               ))}
             </div>
 
-            {/* Liste horizontale déroulante des Spécialités */}
+            {/* Liste horizontale des Spécialités */}
             <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar hide-scrollbar">
               {specialites.map(spe => (
                 <button key={spe}
@@ -259,7 +311,7 @@ const AdminStudentManager = () => {
               ))}
             </div>
 
-            {/* Liste horizontale des Groupes de la spécialité sélectionnée */}
+            {/* Liste horizontale des Groupes */}
             {filterSpe !== 'Tous' && (
               <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar hide-scrollbar border-l pl-2 border-gray-300">
                 {groupes.map(g => (
@@ -275,7 +327,7 @@ const AdminStudentManager = () => {
               </div>
             )}
 
-            {/* Toggle Sans Compte aligné à droite */}
+            {/* Toggle Sans Compte */}
             <button
               onClick={() => setShowSansCompte(p => !p)}
               className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest
@@ -331,7 +383,7 @@ const AdminStudentManager = () => {
                       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ delay: i * 0.03 }}
-                      onClick={() => setSelectedStudent(student)} // ✅ Ouvre le modal
+                      onClick={() => setSelectedStudent(student)}
                       className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-transparent
                                  hover:border-[#006c49]/20 hover:shadow-xl hover:-translate-y-1
                                  transition-all group relative overflow-hidden cursor-pointer"
@@ -340,11 +392,34 @@ const AdminStudentManager = () => {
                       <div className="absolute -right-4 -top-4 w-28 h-28 bg-[#f1f4f2] rounded-full
                                       group-hover:bg-[#d1f4e0]/40 transition-colors pointer-events-none" />
 
+                      {/* Flèche détail — en bas à droite */}
                       <div className="absolute bottom-5 right-5 w-9 h-9 bg-[#f1f4f2] rounded-full
                                       flex items-center justify-center text-gray-400
                                       group-hover:bg-[#1a1c1e] group-hover:text-white transition-all z-20">
                         <ArrowRight size={15} />
                       </div>
+
+                      {/* ── BOUTON POUBELLE ──────────────────────────────────
+                          Positionné en haut à droite, par-dessus le fond déco.
+                          - z-30 pour être au-dessus de tout le reste de la carte
+                          - e.stopPropagation() pour ne pas ouvrir la modale de détail
+                          - Visible seulement au hover de la carte (opacity-0 → opacity-100)
+                      ──────────────────────────────────────────────────────── */}
+                      <button
+                        onClick={(e) => handleDeleteClick(e, student)}
+                        title="Supprimer cet étudiant"
+                        className="absolute top-4 right-4 z-30
+                                   w-9 h-9 rounded-full
+                                   flex items-center justify-center
+                                   opacity-0 group-hover:opacity-100
+                                   bg-white border border-red-100
+                                   text-red-400
+                                   hover:bg-red-500 hover:text-white hover:border-red-500
+                                   hover:shadow-lg hover:shadow-red-500/25
+                                   transition-all duration-200"
+                      >
+                        <Trash2 size={14} strokeWidth={2.5} />
+                      </button>
 
                       <div className="relative z-10 space-y-4">
                         {/* Top : avatar + badge */}
@@ -426,10 +501,10 @@ const AdminStudentManager = () => {
             {/* Stats footer */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: 'Total affiché',  val: filtered.length,        color: 'text-[#1a1c1e]' },
-                { label: 'Total inscrits', val: students.length,        color: 'text-[#1a1c1e]' },
-                { label: 'Sous le seuil',  val: excludedCount,          color: 'text-orange-500' },
-                { label: 'Sans compte',    val: sansCompteCount,        color: 'text-gray-500' },
+                { label: 'Total affiché',  val: filtered.length,  color: 'text-[#1a1c1e]' },
+                { label: 'Total inscrits', val: students.length,  color: 'text-[#1a1c1e]' },
+                { label: 'Sous le seuil',  val: excludedCount,    color: 'text-orange-500' },
+                { label: 'Sans compte',    val: sansCompteCount,  color: 'text-gray-500' },
               ].map(({ label, val, color }) => (
                 <div key={label} className="bg-white/60 backdrop-blur-sm p-4 rounded-3xl
                                             border border-white/80 text-center shadow-sm">
@@ -442,14 +517,102 @@ const AdminStudentManager = () => {
         )}
       </div>
 
-      {/* ── Modal Détail Étudiant ── */}
+      {/* ── Modal Détail Étudiant ─────────────────────────────────────────── */}
       <AnimatePresence>
         {selectedStudent && (
           <StudentDetailModal
             student={selectedStudent}
             onClose={() => setSelectedStudent(null)}
-            onSave={handleSave} // ✅ Exécute le fetch PUT déclaré plus haut
+            onSave={handleSave}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Modale de Confirmation de Suppression ────────────────────────────
+          S'affiche quand studentToDelete n'est pas null.
+          Deux boutons : Annuler → handleDeleteCancel / Confirmer → handleDeleteConfirm
+      ──────────────────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {studentToDelete && (
+          <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-4">
+
+            {/* Fond sombre */}
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={handleDeleteCancel}
+              className="absolute inset-0 bg-[#1a1c1e]/80 backdrop-blur-md"
+            />
+
+            {/* Carte modale */}
+            <motion.div
+              initial={{ y: "100%", scale: 0.95 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: "100%", scale: 0.95 }}
+              className="bg-white w-full max-w-md rounded-[3rem] p-8 relative z-10 shadow-2xl"
+            >
+              {/* Icône poubelle centrée */}
+              <div className="w-16 h-16 bg-red-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={28} className="text-red-500" strokeWidth={2} />
+              </div>
+
+              {/* Titre */}
+              <h2 className="font-display font-black text-3xl text-[#1a1c1e] tracking-tighter text-center leading-tight mb-2">
+                Supprimer <br/>
+                <span className="text-red-500">
+                  {studentToDelete.prenom} {studentToDelete.nom}
+                </span>
+                {' '}?
+              </h2>
+
+              {/* Description */}
+              <p className="text-gray-400 font-bold text-xs text-center leading-relaxed mb-2">
+                Le compte sera désactivé et les données personnelles effacées.
+              </p>
+              <p className="text-[#006c49] font-black text-[10px] text-center uppercase tracking-widest mb-8">
+                Ses présences passées restent conservées.
+              </p>
+
+              {/* Message d'erreur si échec */}
+              {deleteError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 mb-6">
+                  <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-700 font-bold">{deleteError}</p>
+                </motion.div>
+              )}
+
+              {/* Boutons */}
+              <div className="flex gap-3">
+                {/* Annuler */}
+                <button
+                  onClick={handleDeleteCancel}
+                  disabled={deleteLoading}
+                  className="flex-1 py-5 bg-[#f1f4f2] text-[#1a1c1e] rounded-[2rem]
+                             font-display font-black text-xs uppercase tracking-widest
+                             hover:bg-gray-200 disabled:opacity-50 transition-all"
+                >
+                  Annuler
+                </button>
+
+                {/* Confirmer suppression */}
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={deleteLoading}
+                  className="flex-1 py-5 bg-red-500 text-white rounded-[2rem]
+                             font-display font-black text-xs uppercase tracking-widest
+                             hover:bg-red-600 disabled:bg-red-300
+                             flex items-center justify-center gap-2
+                             shadow-lg shadow-red-500/25 transition-all"
+                >
+                  {deleteLoading
+                    ? <><Loader2 size={16} className="animate-spin" /> Suppression...</>
+                    : <><Trash2 size={16} strokeWidth={2.5} /> Supprimer</>
+                  }
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
